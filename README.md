@@ -74,8 +74,8 @@ En arranques posteriores con los datos existentes, omita el bootstrap y valide d
 
 ```sh
 cd server-hdd/sql-server
-sudo mkdir -p /var/app/mssql /var/apps/database/mssql/backups
-sudo chmod 777 -R /var/app/mssql /var/apps/database/mssql
+sudo mkdir -p /var/app/mssql
+sudo chmod 777 -R /var/app/mssql
 
 # Levantar el servicio
 podman compose up -d --remove-orphans
@@ -111,8 +111,8 @@ podman exec -it arix-mssql /opt/mssql-tools18/bin/sqlcmd \
   -Q "RESTORE DATABASE [my_db_transaction]
       FROM DISK = N'/var/opt/mssql/backups/db_transaction.bak'
       WITH
-        MOVE N'<LogicalDataName>' TO N'/var/opt/mssql/data/my_db_transaction.mdf',
-        MOVE N'<LogicalLogName>' TO N'/var/opt/mssql/data/my_db_transaction_log.ldf',
+        MOVE N'db_transaction' TO N'/var/opt/mssql/data/my_db_transaction.mdf',
+        MOVE N'db_transaction_log' TO N'/var/opt/mssql/data/my_db_transaction_log.ldf',
         REPLACE,
         RECOVERY,
         STATS = 5;"
@@ -179,8 +179,12 @@ podman compose down
 ### 3. Kafka en server-hdd (Podman, 192.168.3.21)
 
 ```sh
+# crear
+sudo mkdir -p /var/app/kafka
+sudo chmod 777 -R /var/app/kafka
+
 cd server-hdd/kafka
-podman compose up -d
+podman compose up -d --remove-orphans
 podman compose ps
 podman compose logs kafka-topics-init
 ```
