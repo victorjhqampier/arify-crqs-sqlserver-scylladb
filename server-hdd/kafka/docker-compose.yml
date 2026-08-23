@@ -1,0 +1,50 @@
+# Kafka component: standalone KRaft broker plus a local one-shot topic initializer.
+name: arify-kafka
+
+services:
+  kafka:
+    image: apache/kafka:3.7.1
+    container_name: arify-kafka
+    hostname: arify-kafka
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      KAFKA_HEAP_OPTS: "-Xms512m -Xmx512m"
+    entrypoint: ["/bin/bash", "/etc/kafka/start-kraft.sh"]
+    ports:
+      - "9092:9092"
+    volumes:
+      - ./config/server.properties:/etc/kafka/server.properties:ro
+      - ./start-kraft.sh:/etc/kafka/start-kraft.sh:ro
+      - /var/app/kafka:/var/lib/kafka/data
+    cpus: 1.0
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - kafka
+
+  kafka-topics-init:
+    image: apache/kafka:3.7.1
+    restart: "no"
+    env_file:
+      - ./topics.env
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/scripts/create-topics.sh"]
+    volumes:
+      - ./create-topics.sh:/scripts/create-topics.sh:ro
+    cpus: 0.25
+    mem_limit: 256m
+    networks:
+      - kafka
+
+networks:
+  kafka:
+    driver: bridge

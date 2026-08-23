@@ -1,0 +1,45 @@
+# ScyllaDB component: deployment definition with a one-shot local CQL setup job.
+name: arify-scylladb
+
+services:
+  scylladb:
+    image: scylladb/scylla:latest
+    container_name: arify-scylladb
+    hostname: arify-scylladb
+    restart: always
+    env_file:
+      - ./.env
+    command: --smp 2 --memory 2G --overprovisioned 1 --authenticator PasswordAuthenticator --authorizer CassandraAuthorizer
+    ports:
+      - "9042:9042"
+    volumes:
+      - /var/apps/scylladb/data:/var/lib/scylla
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -u cassandra -p \"$$SCYLLA_SUPERUSER_PASSWORD\" -e 'DESCRIBE KEYSPACES' >/dev/null 2>&1 || cqlsh -u cassandra -p cassandra -e 'DESCRIBE KEYSPACES' >/dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+    networks:
+      - scylladb
+
+  cql-init:
+    image: scylladb/scylla:latest
+    restart: "no"
+    env_file:
+      - ./.env
+    depends_on:
+      scylladb:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/scripts/init-cql.sh"]
+    volumes:
+      - ./cql:/cql:ro
+      - ./init-cql.sh:/scripts/init-cql.sh:ro
+    cpus: 0.25
+    mem_limit: 256m
+    networks:
+      - scylladb
+
+networks:
+  scylladb:
+    driver: bridge

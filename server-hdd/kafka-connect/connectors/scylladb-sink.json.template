@@ -1,0 +1,13 @@
+{
+  "connector.class": "com.datastax.oss.kafka.sink.CassandraSinkConnector",
+  "tasks.max": "1",
+  "contactPoints": "${env:SCYLLA_CONTACT_POINTS}",
+  "loadBalancing.localDc": "${env:SCYLLA_LOCAL_DC}",
+  "auth.username": "${env:SCYLLA_SINK_USERNAME}",
+  "auth.password": "${env:SCYLLA_SINK_PASSWORD}",
+  "topics": "__CDC_TOPIC_KARDEX__,__CDC_TOPIC_AGENCIA__,__CDC_TOPIC_CANAL__",
+  "deletesEnabled": "true",
+  "topic.__CDC_TOPIC_KARDEX__.__SCYLLA_KEYSPACE__.fin_kardex_por_id.mapping": "kardex_id=key.KardexId,agencia_codigo=value.AgenciaCodigo,canal_codigo=value.CanalCodigo,fecha_movimiento=value.FechaMovimiento,monto=value.Monto,estado=value.Estado,actualizado_en=value.ActualizadoEn",
+  "topic.__CDC_TOPIC_AGENCIA__.__SCYLLA_KEYSPACE__.fin_agencia_por_codigo.mapping": "agencia_codigo=key.AgenciaCodigo,nombre=value.Nombre,estado=value.Estado,actualizado_en=value.ActualizadoEn",
+  "topic.__CDC_TOPIC_CANAL__.__SCYLLA_KEYSPACE__.fin_canal_por_codigo.mapping": "canal_codigo=key.CanalCodigo,nombre=value.Nombre,estado=value.Estado,actualizado_en=value.ActualizadoEn"
+}

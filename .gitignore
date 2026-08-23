@@ -1,0 +1,3 @@
+# Local deployment values and generated container state must not be versioned.
+**/.env
+**/data/

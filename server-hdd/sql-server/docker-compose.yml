@@ -1,0 +1,46 @@
+# SQL Server component: deployment definition with a one-shot local CDC setup job.
+name: arify-sql-server
+
+services:
+  sql-server:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: arix-mssql
+    hostname: arix-mssql
+    restart: always
+    env_file:
+      - ./.env
+    environment:
+      ACCEPT_EULA: "Y"
+    ports:
+      - "1433:1433"
+    volumes:
+      - /var/app/mssql:/var/opt/mssql
+    mem_limit: 3g
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$SA_PASSWORD\" -Q 'SELECT 1' >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - sql-server
+
+  sqlserver-init:
+    image: mcr.microsoft.com/mssql-tools18:latest
+    restart: "no"
+    env_file:
+      - ./.env
+    depends_on:
+      sql-server:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/scripts/init-cdc.sh"]
+    volumes:
+      - ./init:/scripts:ro
+    cpus: 0.25
+    mem_limit: 256m
+    networks:
+      - sql-server
+
+networks:
+  sql-server:
+    driver: bridge
