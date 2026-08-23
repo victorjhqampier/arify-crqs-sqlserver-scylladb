@@ -46,15 +46,20 @@ SCYLLA_CONTACT_POINTS=192.168.3.204
 
 ```sh
 cd server-sdd/scylladb
+docker compose down
+sudo rm -rf /var/apps/scylladb/data
+sudo mkdir -p /var/apps/scylladb/data
+sudo chmod 777 /var/apps/scylladb/data
 docker compose up -d
 docker compose ps
 docker exec -i arify-scylladb cqlsh -u cassandra -p cassandra < cql/00-keyspace.cql
 docker exec -i arify-scylladb cqlsh -u cassandra -p cassandra < cql/10-proyecciones.cql
-docker exec -i arify-scylladb cqlsh -u cassandra -p cassandra < cql/90-bootstrap-roles.cql
+docker exec -i arify-scylladb cqlsh -u cassandra -p cassandra < cql/80-bootstrap-superuser.cql
+docker exec -i arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++' < cql/90-bootstrap-roles.cql
 docker exec -it arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++'
 ```
 
-Continue solo cuando ScyllaDB este `Up` y los tres scripts CQL se hayan ejecutado correctamente. No use `docker compose down -v` durante el arranque: eliminaria el estado persistente de los servicios que usen volumenes.
+Continue solo cuando ScyllaDB este `Up` y los cuatro scripts CQL se hayan ejecutado correctamente. El borrado de datos es solo para reiniciar esta POC desde cero; no lo use cuando existan datos que desees conservar.
 
 ### 2. SQL Server en server-hdd (Podman, 192.168.3.21)
 

@@ -3,7 +3,7 @@ name: arify-scylladb
 
 services:
   scylladb:
-    image: scylladb/scylla:latest
+    image: scylladb/scylla:5.4.9
     container_name: arify-scylladb
     hostname: arify-scylladb
     restart: always

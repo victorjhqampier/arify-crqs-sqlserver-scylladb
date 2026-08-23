@@ -1,5 +1,4 @@
--- Run manually once as cassandra/cassandra after 00-keyspace.cql and 10-proyecciones.cql.
-ALTER ROLE cassandra WITH PASSWORD = 'Sysadmin321++' AND LOGIN = true AND SUPERUSER = true;
+-- Run manually as cassandra/Sysadmin321++ after 80-bootstrap-superuser.cql.
 
 CREATE ROLE IF NOT EXISTS arify_kafka_sink
 WITH PASSWORD = 'Sysadmin321++'

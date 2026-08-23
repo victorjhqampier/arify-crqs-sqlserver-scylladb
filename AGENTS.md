@@ -67,7 +67,7 @@ server-sdd/
 | Paso | Servicio | Healthcheck | Condicion para continuar |
 | --- | --- | --- | --- |
 | 1 | ScyllaDB | `docker compose ps` | Contenedor ScyllaDB en estado `Up`. |
-| 2 | Bootstrap CQL manual | Ejecuta `00-keyspace.cql`, `10-proyecciones.cql` y `90-bootstrap-roles.cql` | Keyspace, tablas y roles existen. |
+| 2 | Bootstrap CQL manual | Ejecuta `00-keyspace.cql`, `10-proyecciones.cql`, `80-bootstrap-superuser.cql` y `90-bootstrap-roles.cql` | Keyspace, tablas y roles existen. |
 | 3 | SQL Server | `/opt/mssql-tools18/bin/sqlcmd -Q "SELECT 1"` | SQL responde. |
 | 4 | Kafka | `kafka-broker-api-versions.sh --bootstrap-server localhost:9092` | Broker responde. |
 | 5 | Kafka Connect | `curl -s http://localhost:8083/connectors` | API REST responde. |
@@ -85,7 +85,7 @@ server-sdd/
 - Aplicar limites con `cpus` y `mem_limit`; no depender solo de `deploy.resources`.
 - SQL Server: conservar su configuracion validada (`mem_limit: 3g`, sin limite CPU adicional) hasta validar un cambio de capacidad en el servidor destino.
 - Kafka y Kafka Connect: maximo 1 CPU y 1 GB cada uno; limitar el heap JVM a 512 MB.
-- ScyllaDB: conservar su configuracion validada (`--smp 2`, `--memory 2G`, `--overprovisioned 1`) hasta validar un cambio de capacidad en el servidor destino.
+- ScyllaDB: usar `scylladb/scylla:5.4.9` y conservar su configuracion validada (`--smp 2`, `--memory 2G`, `--overprovisioned 1`) hasta validar un cambio de capacidad en el servidor destino.
 - `server-hdd` requiere aproximadamente 5 GB para sus contenedores y `server-sdd` 2.5 GB, sin contar el sistema operativo.
 
 ## Kafka POC
