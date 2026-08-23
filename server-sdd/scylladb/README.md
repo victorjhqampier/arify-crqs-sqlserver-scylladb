@@ -26,4 +26,12 @@ docker compose up -d
 docker compose ps
 ```
 
-`cql-init` aplica los CQL en orden alfabetico y configura los roles. Antes de registrar el Sink, confirme que haya terminado correctamente y permita acceso desde Kafka Connect al puerto `9042`.
+`cql-init` inicia junto a ScyllaDB, espera CQL autenticado durante un maximo de 120 segundos y luego aplica los CQL y roles. Antes de registrar el Sink, confirme que haya terminado correctamente y permita acceso desde Kafka Connect al puerto `9042`.
+
+## Recrear servicios
+
+Para recrear los contenedores despues de un cambio de Compose sin borrar datos del bind mount:
+
+```sh
+docker compose up -d --force-recreate
+```

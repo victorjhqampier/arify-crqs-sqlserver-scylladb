@@ -24,14 +24,27 @@ for role in "${SCYLLA_SINK_USERNAME}" "${SCYLLA_READONLY_USERNAME}"; do
 done
 
 superuser=cassandra
-if cqlsh scylladb -u "${superuser}" -p "${SCYLLA_SUPERUSER_PASSWORD}" -e 'DESCRIBE KEYSPACES' >/dev/null 2>&1; then
-  : # The configured password is already active.
-elif cqlsh scylladb -u "${superuser}" -p cassandra -e 'DESCRIBE KEYSPACES' >/dev/null 2>&1; then
+authenticated_password=
+for attempt in $(seq 1 60); do
+  if cqlsh scylladb -u "${superuser}" -p "${SCYLLA_SUPERUSER_PASSWORD}" -e 'DESCRIBE KEYSPACES' >/dev/null 2>&1; then
+    authenticated_password="${SCYLLA_SUPERUSER_PASSWORD}"
+    break
+  fi
+  if cqlsh scylladb -u "${superuser}" -p cassandra -e 'DESCRIBE KEYSPACES' >/dev/null 2>&1; then
+    authenticated_password=cassandra
+    break
+  fi
+  sleep 2
+done
+
+if [[ -z "${authenticated_password}" ]]; then
+  printf 'ScyllaDB did not accept the configured or bootstrap superuser password within 120 seconds.\n' >&2
+  exit 1
+fi
+
+if [[ "${authenticated_password}" == "cassandra" && "${SCYLLA_SUPERUSER_PASSWORD}" != "cassandra" ]]; then
   cqlsh scylladb -u "${superuser}" -p cassandra -e \
     "ALTER ROLE ${superuser} WITH PASSWORD = '$(cql_string "${SCYLLA_SUPERUSER_PASSWORD}")' AND LOGIN = true AND SUPERUSER = true;"
-else
-  printf 'Cannot authenticate the ScyllaDB superuser with the configured or bootstrap password.\n' >&2
-  exit 1
 fi
 
 cql() {

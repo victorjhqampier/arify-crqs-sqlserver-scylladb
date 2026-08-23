@@ -15,14 +15,11 @@ services:
     volumes:
       - /var/apps/scylladb/data:/var/lib/scylla
     healthcheck:
-      test: ["CMD-SHELL", "cqlsh -u cassandra -p \"$$SCYLLA_SUPERUSER_PASSWORD\" -e 'DESCRIBE KEYSPACES' >/dev/null 2>&1 || cqlsh -u cassandra -p cassandra -e 'DESCRIBE KEYSPACES' >/dev/null"]
+      test: ["CMD-SHELL", "cqlsh \"$$(hostname -i)\" -u cassandra -p \"$$SCYLLA_SUPERUSER_PASSWORD\" -e 'DESCRIBE KEYSPACES' >/dev/null 2>&1"]
       interval: 15s
       timeout: 10s
       retries: 20
       start_period: 30s
-    networks:
-      - scylladb
-
   cql-init:
     image: scylladb/scylla:latest
     restart: "no"
@@ -30,16 +27,10 @@ services:
       - ./.env
     depends_on:
       scylladb:
-        condition: service_healthy
+        condition: service_started
     entrypoint: ["/bin/bash", "/scripts/init-cql.sh"]
     volumes:
       - ./cql:/cql:ro
       - ./init-cql.sh:/scripts/init-cql.sh:ro
     cpus: 0.25
     mem_limit: 256m
-    networks:
-      - scylladb
-
-networks:
-  scylladb:
-    driver: bridge

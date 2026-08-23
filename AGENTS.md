@@ -138,7 +138,7 @@ server-sdd/
 - Mantener Compose, configuracion de conectores, esquemas CQL y valores por entorno en archivos separados y montados por cada componente, sin rutas relativas hacia otro componente.
 - Cambiar Compose solo despues de validar el impacto en los servidores destino.
 - No ejecutar contenedores directamente en este servidor; validar en los servidores destino mediante SSH.
-- Los servicios nuevos usan `restart: unless-stopped`, `TZ=America/Lima` y la red Compose por defecto; los componentes existentes conservan su reinicio configurado.
+- Los servicios nuevos usan `restart: unless-stopped`, `TZ=America/Lima` y la red Compose por defecto; no declarar redes personalizadas. Los componentes existentes conservan su reinicio configurado.
 
 ## Documentacion Interna
 - Incluir comentarios explicativos en componentes clave: archivos Compose, JSON de conectores, scripts de inicializacion CDC y esquemas CQL.

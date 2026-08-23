@@ -45,10 +45,14 @@ SCYLLA_CONTACT_POINTS=192.168.3.204
 ### 1. ScyllaDB en server-sdd (Docker, 192.168.3.204)
 
 ```sh
+sudo mkdir -p /var/apps/scylladb/data && sudo chmod 777 -R /var/apps/scylladb
+
 cd server-sdd/scylladb
 docker compose up -d
 docker compose ps
 docker compose logs cql-init
+
+docker compose down -v
 ```
 
 Continue solo cuando `scylladb` este sano y `cql-init` haya terminado correctamente.
