@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Enables CDC on pre-existing source tables only after SQL Server is healthy.
+# Runs manually inside the SQL Server container to enable CDC on pre-existing source tables.
 set -Eeuo pipefail
 
-sqlcmd=(/opt/mssql-tools18/bin/sqlcmd -C -S sql-server -U sa -P "${SA_PASSWORD}")
+sqlcmd=(/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "${SA_PASSWORD}")
 variables=(
   "DB_NAME=${SQLSERVER_DB}"
   "DEBEZIUM_USER=${DEBEZIUM_USER}"

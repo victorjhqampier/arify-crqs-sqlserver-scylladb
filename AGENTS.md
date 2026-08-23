@@ -35,7 +35,7 @@
 
 ```text
 server-hdd/
-  sql-server/                     # SQL Server y su inicializador CDC
+  sql-server/                     # SQL Server y su preparacion CDC manual
     docker-compose.yml
     init/                         # Scripts SQL para habilitar CDC en las tablas
   kafka/                          # Broker KRaft y topicos CDC
@@ -59,7 +59,7 @@ server-sdd/
 - Mantener un Compose por componente: `sql-server/`, `kafka/`, `kafka-connect/` y `scylladb/`.
 - Cada Compose tiene red, variables y archivos propios; no puede usar `depends_on`, DNS interno, bind mounts ni `.env` de otro componente.
 - Los componentes se integran solo por IP/DNS, puertos y contratos de topicos configurables; deben poder moverse a repositorios y servidores distintos.
-- SQL Server incluye un inicializador CDC local y Kafka incluye un inicializador local de topicos. ScyllaDB se inicia sola; sus esquemas y roles CQL se aplican manualmente despues del bootstrap autenticado.
+- SQL Server y ScyllaDB se inician solos; sus restauraciones, esquemas, roles y CDC se aplican manualmente despues del bootstrap. Kafka incluye un inicializador local de topicos.
 - Kafka Connect es el unico componente que recibe endpoints externos de SQL Server, Kafka y ScyllaDB en su propio `.env`.
 
 ## Orden de Arranque
@@ -68,7 +68,7 @@ server-sdd/
 | --- | --- | --- | --- |
 | 1 | ScyllaDB | `docker compose ps` | Contenedor ScyllaDB en estado `Up`. |
 | 2 | Bootstrap CQL manual | Cambia `cassandra/cassandra`, ejecuta `00-keyspace.cql`, `10-proyecciones.cql` y `90-bootstrap-roles.cql` | Keyspace, tablas y roles existen. |
-| 3 | SQL Server | `/opt/mssql-tools18/bin/sqlcmd -Q "SELECT 1"` | SQL responde. |
+| 3 | SQL Server | Restaura `DB_Financiero.bak` como `Arify`, habilita SQL Server Agent y ejecuta `init-cdc.sh` | SQL responde y CDC esta habilitado. |
 | 4 | Kafka | `kafka-broker-api-versions.sh --bootstrap-server localhost:9092` | Broker responde. |
 | 5 | Kafka Connect | `curl -s http://localhost:8083/connectors` | API REST responde. |
 | 6 | Registrar conectores | `curl -X POST` a la API REST | Conectores en estado RUNNING. |

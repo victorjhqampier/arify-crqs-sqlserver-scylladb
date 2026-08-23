@@ -74,12 +74,19 @@ En arranques posteriores con los datos existentes, omita el bootstrap y valide d
 
 ```sh
 cd server-hdd/sql-server
-podman compose up -d
+sudo mkdir -p /var/app/mssql
+sudo chmod 777 -R /var/app/mssql
+
+# Levantar el servocio 
+podman compose up -d --remove-orphans
 podman compose ps
-podman compose logs sqlserver-init
+until podman exec arix-mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Sysadmin321++' -Q "SELECT 1" >/dev/null 2>&1; do sleep 5; done
+
+# Eliminar
+podman compose down
 ```
 
-Continue solo cuando `sql-server` este sano y `sqlserver-init` haya terminado correctamente.
+Copie `DB_Financiero.bak` a `/var/apps/database/mssql/backups/`, restaure la base como `Arify`, habilite SQL Server Agent y ejecute `podman exec -it arix-mssql /bin/bash /scripts/init-cdc.sh`. Los comandos completos estan en `server-hdd/sql-server/README.md`.
 
 ### 3. Kafka en server-hdd (Podman, 192.168.3.21)
 
