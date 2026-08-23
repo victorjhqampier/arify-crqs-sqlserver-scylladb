@@ -8,14 +8,11 @@ Este componente administra los modelos de lectura CQL. No conoce Kafka, Kafka Co
 mv .env.example .env
 ```
 
-Compose es la definicion de despliegue: contenedor y hostname `arify-scylladb`, puerto `9042`, reinicio `always`, bind mount `/var/apps/scylladb/data:/var/lib/scylla`, `--smp 2`, `--memory 2G` y `--overprovisioned 1`.
+Compose es la definicion de despliegue: un unico contenedor `arify-scylladb`, puerto `9042`, reinicio `always`, bind mount `/var/apps/scylladb/data:/var/lib/scylla`, `--smp 2`, `--memory 2G` y `--overprovisioned 1`.
 
 `SCYLLA_LOCAL_DC` debe coincidir con el valor configurado en Kafka Connect. Actualice `cql/10-proyecciones.cql` a partir de las consultas de lectura y el DDL real; no replique el esquema SQL Server literalmente.
 
-La autenticacion CQL y autorizacion estan activas. En el primer arranque, `init-cql.sh` accede con el bootstrap `cassandra/cassandra`, cambia inmediatamente la clave por `SCYLLA_SUPERUSER_PASSWORD` y crea:
-
-- `SCYLLA_SINK_USERNAME`: permiso `MODIFY` sobre `arify_cqrs`, exclusivo para Kafka Connect.
-- `SCYLLA_READONLY_USERNAME`: permiso `SELECT` sobre `arify_cqrs`, base para consumidores de lectura. Cree un rol equivalente por microservicio cuando requiera aislamiento adicional.
+La autenticacion CQL y autorizacion estan activas. El primer bootstrap es manual y visible: se conecta con `cassandra/cassandra`, aplica los esquemas y ejecuta `cql/90-bootstrap-roles.cql`. Ese archivo cambia la clave de `cassandra` a `Sysadmin321++`, crea `arify_kafka_sink` con permiso `MODIFY` y `arify_readonly` con permiso `SELECT` sobre `arify_cqrs`.
 
 No use el superusuario `cassandra` en Kafka Connect ni en microservicios. Si ya existe una instancia con datos en `/var/apps/scylladb/data`, respalde y pruebe el reinicio: activar autenticacion corta a los clientes sin credenciales.
 
@@ -26,7 +23,16 @@ docker compose up -d
 docker compose ps
 ```
 
-`cql-init` inicia junto a ScyllaDB, espera CQL autenticado durante un maximo de 120 segundos y luego aplica los CQL y roles. Antes de registrar el Sink, confirme que haya terminado correctamente y permita acceso desde Kafka Connect al puerto `9042`.
+Cuando el contenedor este `Up`, ejecute una sola vez desde esta carpeta:
+
+```sh
+docker exec -i arify-scylladb cqlsh -u cassandra -p cassandra < cql/00-keyspace.cql
+docker exec -i arify-scylladb cqlsh -u cassandra -p cassandra < cql/10-proyecciones.cql
+docker exec -i arify-scylladb cqlsh -u cassandra -p cassandra < cql/90-bootstrap-roles.cql
+docker exec -it arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++'
+```
+
+Antes de registrar el Sink, permita acceso desde Kafka Connect al puerto `9042` y confirme que existen el keyspace, tablas y roles.
 
 ## Recrear servicios
 

@@ -46,7 +46,7 @@ server-hdd/
     plugins/                      # JARs de Debezium SQL Server y DataStax Cassandra Sink
     connectors/                   # JSON de registro de conectores via API REST
 server-sdd/
-  scylladb/                       # ScyllaDB, esquemas CQL y valores del componente
+  scylladb/                       # ScyllaDB, esquemas CQL manuales y valores del componente
     docker-compose.yml
     cql/                          # Scripts CQL ordenados por prefijo numerico
       00-keyspace.cql             # CREATE KEYSPACE arify_cqrs
@@ -59,15 +59,15 @@ server-sdd/
 - Mantener un Compose por componente: `sql-server/`, `kafka/`, `kafka-connect/` y `scylladb/`.
 - Cada Compose tiene red, variables y archivos propios; no puede usar `depends_on`, DNS interno, bind mounts ni `.env` de otro componente.
 - Los componentes se integran solo por IP/DNS, puertos y contratos de topicos configurables; deben poder moverse a repositorios y servidores distintos.
-- SQL Server incluye un inicializador CDC local; ScyllaDB puede incluir un inicializador CQL local; Kafka incluye un inicializador local de topicos.
+- SQL Server incluye un inicializador CDC local y Kafka incluye un inicializador local de topicos. ScyllaDB se inicia sola; sus esquemas y roles CQL se aplican manualmente despues del bootstrap autenticado.
 - Kafka Connect es el unico componente que recibe endpoints externos de SQL Server, Kafka y ScyllaDB en su propio `.env`.
 
 ## Orden de Arranque
 
 | Paso | Servicio | Healthcheck | Condicion para continuar |
 | --- | --- | --- | --- |
-| 1 | ScyllaDB | `cqlsh -u cassandra -p "$SCYLLA_SUPERUSER_PASSWORD" -e "DESCRIBE KEYSPACES"` | CQL autenticado responde. |
-| 2 | Inicializador CQL | Ejecuta scripts en `scylladb/cql/` | Keyspace `arify_cqrs` y tablas existen. |
+| 1 | ScyllaDB | `docker compose ps` | Contenedor ScyllaDB en estado `Up`. |
+| 2 | Bootstrap CQL manual | Ejecuta `00-keyspace.cql`, `10-proyecciones.cql` y `90-bootstrap-roles.cql` | Keyspace, tablas y roles existen. |
 | 3 | SQL Server | `/opt/mssql-tools18/bin/sqlcmd -Q "SELECT 1"` | SQL responde. |
 | 4 | Kafka | `kafka-broker-api-versions.sh --bootstrap-server localhost:9092` | Broker responde. |
 | 5 | Kafka Connect | `curl -s http://localhost:8083/connectors` | API REST responde. |
@@ -86,7 +86,6 @@ server-sdd/
 - SQL Server: conservar su configuracion validada (`mem_limit: 3g`, sin limite CPU adicional) hasta validar un cambio de capacidad en el servidor destino.
 - Kafka y Kafka Connect: maximo 1 CPU y 1 GB cada uno; limitar el heap JVM a 512 MB.
 - ScyllaDB: conservar su configuracion validada (`--smp 2`, `--memory 2G`, `--overprovisioned 1`) hasta validar un cambio de capacidad en el servidor destino.
-- El inicializador CQL, si existe, debe limitarse a 0.25 CPU y 256 MB.
 - `server-hdd` requiere aproximadamente 5 GB para sus contenedores y `server-sdd` 2.5 GB, sin contar el sistema operativo.
 
 ## Kafka POC

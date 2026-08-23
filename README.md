@@ -45,17 +45,16 @@ SCYLLA_CONTACT_POINTS=192.168.3.204
 ### 1. ScyllaDB en server-sdd (Docker, 192.168.3.204)
 
 ```sh
-sudo mkdir -p /var/apps/scylladb/data && sudo chmod 777 -R /var/apps/scylladb
-
 cd server-sdd/scylladb
 docker compose up -d
 docker compose ps
-docker compose logs cql-init
-
-docker compose down -v
+docker exec -i arify-scylladb cqlsh -u cassandra -p cassandra < cql/00-keyspace.cql
+docker exec -i arify-scylladb cqlsh -u cassandra -p cassandra < cql/10-proyecciones.cql
+docker exec -i arify-scylladb cqlsh -u cassandra -p cassandra < cql/90-bootstrap-roles.cql
+docker exec -it arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++'
 ```
 
-Continue solo cuando `scylladb` este sano y `cql-init` haya terminado correctamente.
+Continue solo cuando ScyllaDB este `Up` y los tres scripts CQL se hayan ejecutado correctamente. No use `docker compose down -v` durante el arranque: eliminaria el estado persistente de los servicios que usen volumenes.
 
 ### 2. SQL Server en server-hdd (Podman, 192.168.3.21)
 
