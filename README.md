@@ -74,19 +74,107 @@ En arranques posteriores con los datos existentes, omita el bootstrap y valide d
 
 ```sh
 cd server-hdd/sql-server
-sudo mkdir -p /var/app/mssql
-sudo chmod 777 -R /var/app/mssql
+sudo mkdir -p /var/app/mssql /var/apps/database/mssql/backups
+sudo chmod 777 -R /var/app/mssql /var/apps/database/mssql
 
-# Levantar el servocio 
+# Levantar el servicio
 podman compose up -d --remove-orphans
 podman compose ps
 until podman exec arix-mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Sysadmin321++' -Q "SELECT 1" >/dev/null 2>&1; do sleep 5; done
-
-# Eliminar
-podman compose down
 ```
 
-Copie `DB_Financiero.bak` a `/var/apps/database/mssql/backups/`, restaure la base como `Arify`, habilite SQL Server Agent y ejecute `podman exec -it arix-mssql /bin/bash /scripts/init-cdc.sh`. Los comandos completos estan en `server-hdd/sql-server/README.md`.
+Copiar el backup desde esta maquina macOS hacia `server-hdd`:
+
+```sh
+scp /Users/vcaxi/Downloads/temp/apibus-trx/To-Be/db_transaction.bak skynet@192.168.3.219:/var/apps/database/mssql/backups/
+```
+
+Validar que el backup existe dentro del contenedor:
+
+```sh
+podman exec -it arix-mssql ls -lh /var/opt/mssql/backups
+```
+
+Leer los nombres logicos del backup:
+
+```sh
+podman exec -it arix-mssql /opt/mssql-tools18/bin/sqlcmd \
+  -C -S localhost -U sa -P 'Sysadmin321++' \
+  -Q "RESTORE FILELISTONLY FROM DISK = N'/var/opt/mssql/backups/db_transaction.bak';"
+```
+
+Restaurar el backup como `my_db_transaction`, el nombre estable que Debezium leera por CDC. El backup puede venir de otra base o prueba; reemplace solo `<LogicalDataName>` y `<LogicalLogName>` con los valores de `LogicalName` devueltos por `RESTORE FILELISTONLY`:
+
+```sh
+podman exec -it arix-mssql /opt/mssql-tools18/bin/sqlcmd \
+  -C -S localhost -U sa -P 'Sysadmin321++' \
+  -Q "RESTORE DATABASE [my_db_transaction]
+      FROM DISK = N'/var/opt/mssql/backups/db_transaction.bak'
+      WITH
+        MOVE N'<LogicalDataName>' TO N'/var/opt/mssql/data/my_db_transaction.mdf',
+        MOVE N'<LogicalLogName>' TO N'/var/opt/mssql/data/my_db_transaction_log.ldf',
+        REPLACE,
+        RECOVERY,
+        STATS = 5;"
+```
+
+Validar la restauracion:
+
+```sh
+podman exec -it arix-mssql /opt/mssql-tools18/bin/sqlcmd \
+  -C -S localhost -U sa -P 'Sysadmin321++' \
+  -Q "SELECT name, state_desc FROM sys.databases WHERE name = N'my_db_transaction';"
+```
+
+Validar que la base restaurada contiene las tres tablas origen de CDC:
+
+```sh
+podman exec -it arix-mssql /opt/mssql-tools18/bin/sqlcmd \
+  -C -S localhost -U sa -P 'Sysadmin321++' -d my_db_transaction \
+  -Q "SELECT name FROM sys.tables WHERE schema_id = SCHEMA_ID(N'dbo') AND name IN (N'SI_FinKardex', N'SI_FinAgenciaCCE', N'SI_FinCanalCCE');"
+```
+
+Habilitar SQL Server Agent, requerido por CDC:
+
+```sh
+podman exec -it arix-mssql /opt/mssql/bin/mssql-conf set sqlagent.enabled true
+podman restart arix-mssql
+until podman exec arix-mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Sysadmin321++' -Q "SELECT 1" >/dev/null 2>&1; do sleep 5; done
+```
+
+Ejecutar la configuracion CDC sobre `my_db_transaction`. El script valida las tres tablas, habilita CDC solo para ellas y crea el acceso de Debezium:
+
+```sh
+podman exec -it arix-mssql /bin/bash /scripts/init-cdc.sh
+```
+
+Validar que CDC quedo habilitado en las tres tablas:
+
+```sh
+podman exec -it arix-mssql /opt/mssql-tools18/bin/sqlcmd \
+  -C -S localhost -U sa -P 'Sysadmin321++' -d my_db_transaction \
+  -Q "SELECT name, is_tracked_by_cdc FROM sys.tables WHERE name IN (N'SI_FinKardex', N'SI_FinAgenciaCCE', N'SI_FinCanalCCE');"
+```
+
+Validar que existe el usuario de Debezium:
+
+```sh
+podman exec -it arix-mssql /opt/mssql-tools18/bin/sqlcmd \
+  -C -S localhost -U sa -P 'Sysadmin321++' -d my_db_transaction \
+  -Q "SELECT name FROM sys.database_principals WHERE name = N'debezium';"
+```
+
+CDC se configura sobre la base restaurada `my_db_transaction`. Debezium leera los cambios de estas tres tablas al registrar el Source Connector en Kafka Connect.
+
+No cree una base vacia antes del `RESTORE`: `RESTORE DATABASE [my_db_transaction]` crea o reemplaza la base destino. No configure HADR para esta POC; CDC se habilita exclusivamente con el paso manual anterior.
+
+Para restaurar otro backup de prueba, conserve el nombre destino `my_db_transaction` y actualice unicamente la ruta del backup y sus nombres logicos. Si los conectores ya estan registrados, detenga Source y Sink antes del restore; despues habilite CDC sobre la base restaurada, valide los topicos y reinicialice los conectores segun la estrategia de snapshot y offsets definida para la prueba.
+
+Para eliminar solo el contenedor y red Compose, conservando datos y backups:
+
+```sh
+podman compose down
+```
 
 ### 3. Kafka en server-hdd (Podman, 192.168.3.21)
 

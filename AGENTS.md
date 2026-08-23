@@ -68,13 +68,15 @@ server-sdd/
 | --- | --- | --- | --- |
 | 1 | ScyllaDB | `docker compose ps` | Contenedor ScyllaDB en estado `Up`. |
 | 2 | Bootstrap CQL manual | Cambia `cassandra/cassandra`, ejecuta `00-keyspace.cql`, `10-proyecciones.cql` y `90-bootstrap-roles.cql` | Keyspace, tablas y roles existen. |
-| 3 | SQL Server | Restaura `DB_Financiero.bak` como `Arify`, habilita SQL Server Agent y ejecuta `init-cdc.sh` | SQL responde y CDC esta habilitado. |
+| 3 | SQL Server | Restaura `db_transaction.bak` como `my_db_transaction`, habilita SQL Server Agent y ejecuta `init-cdc.sh` | SQL responde y CDC esta habilitado. |
 | 4 | Kafka | `kafka-broker-api-versions.sh --bootstrap-server localhost:9092` | Broker responde. |
 | 5 | Kafka Connect | `curl -s http://localhost:8083/connectors` | API REST responde. |
 | 6 | Registrar conectores | `curl -X POST` a la API REST | Conectores en estado RUNNING. |
 
 - SQL Server y Kafka pueden arrancar en paralelo, pero sus Compose no se esperan entre si.
 - Kafka Connect se inicia despues de configurar endpoints externos; el Sink no se registra hasta que ScyllaDB tenga el keyspace `arify_cqrs` y las tablas de proyeccion.
+- `my_db_transaction` es el nombre fijo de la base SQL Server capturada por Debezium. Cualquier backup de prueba se restaura con ese nombre; no crear una base vacia antes del restore ni cambiar el nombre de base de los conectores.
+- Los nombres logicos del backup pueden variar. Obtenerlos con `RESTORE FILELISTONLY` y usarlos solo en las clausulas `MOVE` del restore.
 
 ## Kafka KRaft
 - Para esta POC, el unico broker Kafka ejecuta los roles `broker,controller`; no crear un servicio de controlador separado.
@@ -100,7 +102,7 @@ server-sdd/
 
 ## Convencion de Topicos
 - Debezium nombra los topicos como `{topic.prefix}.{database}.{schema}.{table}`.
-- Ejemplo: si `topic.prefix=sqlserver` y la base es `Arify`, el topico para `dbo.SI_FinKardex` sera `sqlserver.Arify.dbo.SI_FinKardex`.
+- Ejemplo: si `topic.prefix=sqlserver` y la base es `my_db_transaction`, el topico para `dbo.SI_FinKardex` sera `sqlserver.my_db_transaction.dbo.SI_FinKardex`.
 - El DataStax Sink debe mapear cada topico a la tabla CQL correspondiente en el keyspace `arify_cqrs`.
 
 ## Configuracion de Conectores
