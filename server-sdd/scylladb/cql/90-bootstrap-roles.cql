@@ -1,4 +1,4 @@
--- Run manually as cassandra/Sysadmin321++ after 80-bootstrap-superuser.cql.
+-- Run manually as cassandra/Sysadmin321++ after changing the bootstrap superuser password.
 
 CREATE ROLE IF NOT EXISTS arify_kafka_sink
 WITH PASSWORD = 'Sysadmin321++'

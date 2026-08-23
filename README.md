@@ -46,20 +46,23 @@ SCYLLA_CONTACT_POINTS=192.168.3.204
 
 ```sh
 cd server-sdd/scylladb
-docker compose down
-sudo rm -rf /var/apps/scylladb/data
 sudo mkdir -p /var/apps/scylladb/data
-sudo chmod 777 /var/apps/scylladb/data
-docker compose up -d
+sudo chmod 777 -R /var/apps/scylladb
+docker compose up -d --remove-orphans
 docker compose ps
-docker exec -i arify-scylladb cqlsh -u cassandra -p cassandra < cql/00-keyspace.cql
-docker exec -i arify-scylladb cqlsh -u cassandra -p cassandra < cql/10-proyecciones.cql
-docker exec -i arify-scylladb cqlsh -u cassandra -p cassandra < cql/80-bootstrap-superuser.cql
+until docker logs arify-scylladb 2>&1 | grep -q "initialization completed"; do sleep 5; done
+
+# Solo en el primer bootstrap, despues de crear un directorio de datos nuevo:
+docker exec -i arify-scylladb cqlsh -u cassandra -p cassandra -e "ALTER ROLE cassandra WITH PASSWORD = 'Sysadmin321++';"
+docker exec -i arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++' < cql/00-keyspace.cql
+docker exec -i arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++' < cql/10-proyecciones.cql
 docker exec -i arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++' < cql/90-bootstrap-roles.cql
 docker exec -it arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++'
 ```
 
-Continue solo cuando ScyllaDB este `Up` y los cuatro scripts CQL se hayan ejecutado correctamente. El borrado de datos es solo para reiniciar esta POC desde cero; no lo use cuando existan datos que desees conservar.
+Para reiniciar la POC desde cero, ejecute antes de este bloque: `docker compose down`, `sudo rm -rf /var/apps/scylladb/data`, vuelva a crear la ruta y levante con `docker compose up -d --force-recreate --remove-orphans`. El borrado de datos elimina keyspaces, tablas y roles.
+
+En arranques posteriores con los datos existentes, omita el bootstrap y valide directamente con `cassandra/Sysadmin321++`. Continue solo cuando ScyllaDB este `Up`, el cambio de contraseña haya terminado y los tres scripts CQL se hayan ejecutado correctamente.
 
 ### 2. SQL Server en server-hdd (Podman, 192.168.3.21)
 

@@ -67,7 +67,7 @@ server-sdd/
 | Paso | Servicio | Healthcheck | Condicion para continuar |
 | --- | --- | --- | --- |
 | 1 | ScyllaDB | `docker compose ps` | Contenedor ScyllaDB en estado `Up`. |
-| 2 | Bootstrap CQL manual | Ejecuta `00-keyspace.cql`, `10-proyecciones.cql`, `80-bootstrap-superuser.cql` y `90-bootstrap-roles.cql` | Keyspace, tablas y roles existen. |
+| 2 | Bootstrap CQL manual | Cambia `cassandra/cassandra`, ejecuta `00-keyspace.cql`, `10-proyecciones.cql` y `90-bootstrap-roles.cql` | Keyspace, tablas y roles existen. |
 | 3 | SQL Server | `/opt/mssql-tools18/bin/sqlcmd -Q "SELECT 1"` | SQL responde. |
 | 4 | Kafka | `kafka-broker-api-versions.sh --bootstrap-server localhost:9092` | Broker responde. |
 | 5 | Kafka Connect | `curl -s http://localhost:8083/connectors` | API REST responde. |
