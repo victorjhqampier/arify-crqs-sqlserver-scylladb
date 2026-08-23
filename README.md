@@ -45,9 +45,12 @@ SCYLLA_CONTACT_POINTS=192.168.3.204
 ### 1. ScyllaDB en server-sdd (Docker, 192.168.3.204)
 
 ```sh
-cd server-sdd/scylladb
+# Create volumen
 sudo mkdir -p /var/apps/scylladb/data
 sudo chmod 777 -R /var/apps/scylladb
+
+# Up docker compose
+cd server-sdd/scylladb
 docker compose up -d --remove-orphans
 docker compose ps
 until docker logs arify-scylladb 2>&1 | grep -q "initialization completed"; do sleep 5; done
@@ -58,6 +61,9 @@ docker exec -i arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++' < cql/00-key
 docker exec -i arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++' < cql/10-proyecciones.cql
 docker exec -i arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++' < cql/90-bootstrap-roles.cql
 docker exec -it arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++'
+
+# Destroy container
+docker compose down
 ```
 
 Para reiniciar la POC desde cero, ejecute antes de este bloque: `docker compose down`, `sudo rm -rf /var/apps/scylladb/data`, vuelva a crear la ruta y levante con `docker compose up -d --force-recreate --remove-orphans`. El borrado de datos elimina keyspaces, tablas y roles.
