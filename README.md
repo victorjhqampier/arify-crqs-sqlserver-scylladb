@@ -179,17 +179,46 @@ podman compose down
 ### 3. Kafka en server-hdd (Podman, 192.168.3.21)
 
 ```sh
-# crear
 sudo mkdir -p /var/app/kafka
 sudo chmod 777 -R /var/app/kafka
 
 cd server-hdd/kafka
+test -f .env || cp .env.example .env
+test -f topics.env || cp topics.env.example topics.env
 podman compose up -d --remove-orphans
 podman compose ps
-podman compose logs kafka-topics-init
+podman exec -it arify-kafka /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092
 ```
 
-Continue solo cuando `kafka` este sano y `kafka-topics-init` haya terminado correctamente.
+Crear los topicos CDC manualmente, despues de que el broker responda:
+
+```sh
+set -a
+. ./topics.env
+set +a
+
+for topic in "$CDC_TOPIC_KARDEX" "$CDC_TOPIC_AGENCIA" "$CDC_TOPIC_CANAL"; do
+  podman exec -it arify-kafka /opt/kafka/bin/kafka-topics.sh \
+    --bootstrap-server localhost:9092 \
+    --create --if-not-exists --topic "$topic" \
+    --partitions 1 --replication-factor 1 \
+    --config retention.ms=300000 --config segment.ms=60000
+done
+
+for topic in "$CONNECT_CONFIG_TOPIC" "$CONNECT_OFFSET_TOPIC" "$CONNECT_STATUS_TOPIC" "$SCHEMA_HISTORY_TOPIC"; do
+  podman exec -it arify-kafka /opt/kafka/bin/kafka-topics.sh \
+    --bootstrap-server localhost:9092 \
+    --create --if-not-exists --topic "$topic" \
+    --partitions 1 --replication-factor 1 \
+    --config cleanup.policy=compact
+done
+```
+
+Valide los topicos antes de iniciar Kafka Connect:
+
+```sh
+podman exec -it arify-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+```
 
 ### 4. Kafka Connect en server-hdd (Podman, 192.168.3.21)
 

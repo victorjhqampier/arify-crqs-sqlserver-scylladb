@@ -59,7 +59,7 @@ server-sdd/
 - Mantener un Compose por componente: `sql-server/`, `kafka/`, `kafka-connect/` y `scylladb/`.
 - Cada Compose tiene red, variables y archivos propios; no puede usar `depends_on`, DNS interno, bind mounts ni `.env` de otro componente.
 - Los componentes se integran solo por IP/DNS, puertos y contratos de topicos configurables; deben poder moverse a repositorios y servidores distintos.
-- SQL Server y ScyllaDB se inician solos; sus restauraciones, esquemas, roles y CDC se aplican manualmente despues del bootstrap. Kafka incluye un inicializador local de topicos.
+- SQL Server y ScyllaDB se inician solos; sus restauraciones, esquemas, roles y CDC se aplican manualmente despues del bootstrap. Kafka inicia solo el broker; los topicos se crean manualmente despues de validar que responde.
 - Kafka Connect es el unico componente que recibe endpoints externos de SQL Server, Kafka y ScyllaDB en su propio `.env`.
 
 ## Orden de Arranque
@@ -69,7 +69,7 @@ server-sdd/
 | 1 | ScyllaDB | `docker compose ps` | Contenedor ScyllaDB en estado `Up`. |
 | 2 | Bootstrap CQL manual | Cambia `cassandra/cassandra`, ejecuta `00-keyspace.cql`, `10-proyecciones.cql` y `90-bootstrap-roles.cql` | Keyspace, tablas y roles existen. |
 | 3 | SQL Server | Restaura `db_transaction.bak` como `my_db_transaction`, habilita SQL Server Agent y ejecuta `init-cdc.sh` | SQL responde y CDC esta habilitado. |
-| 4 | Kafka | `kafka-broker-api-versions.sh --bootstrap-server localhost:9092` | Broker responde. |
+| 4 | Kafka | `kafka-broker-api-versions.sh --bootstrap-server localhost:9092` | Broker responde y los topicos CDC e internos se crean manualmente. |
 | 5 | Kafka Connect | `curl -s http://localhost:8083/connectors` | API REST responde. |
 | 6 | Registrar conectores | `curl -X POST` a la API REST | Conectores en estado RUNNING. |
 

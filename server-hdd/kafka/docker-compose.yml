@@ -1,4 +1,4 @@
-# Kafka component: standalone KRaft broker plus a local one-shot topic initializer.
+# Kafka component: standalone KRaft broker; topics are created manually after startup.
 name: arify-kafka
 
 services:
@@ -26,25 +26,3 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
-    networks:
-      - kafka
-
-  kafka-topics-init:
-    image: apache/kafka:3.7.1
-    restart: "no"
-    env_file:
-      - ./topics.env
-    depends_on:
-      kafka:
-        condition: service_healthy
-    entrypoint: ["/bin/bash", "/scripts/create-topics.sh"]
-    volumes:
-      - ./create-topics.sh:/scripts/create-topics.sh:ro
-    cpus: 0.25
-    mem_limit: 256m
-    networks:
-      - kafka
-
-networks:
-  kafka:
-    driver: bridge
