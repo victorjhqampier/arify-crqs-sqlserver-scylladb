@@ -10,7 +10,9 @@ Cada componente tiene su propio Compose, variables, red Docker y README. Puede v
 | --- | --- | --- |
 | SQL Server | `server-hdd/sql-server/` | Expone SQL Server en `1433`. |
 | Kafka | `server-hdd/kafka/` | Expone el broker configurado en `KAFKA_ADVERTISED_HOST:KAFKA_ADVERTISED_PORT`. |
-| Kafka Connect | `server-hdd/kafka-connect/` | Recibe endpoints de SQL Server, Kafka y ScyllaDB en su propio `.env`. |
+| Kafka Connect Debezium | `server-hdd/kafka-connect-debezium/` | Worker exclusivo para `SQL Server CDC -> Kafka`; REST local `8083`. |
+| Kafka Connect Sink | `server-hdd/kafka-connect-sink/` | Worker exclusivo para `Kafka -> ScyllaDB`; REST local `8084`. |
+| Kafka Connect legado | `server-hdd/kafka-connect/` | Se conserva sin cambios hasta validar ambos workers nuevos; no debe ejecutarse en paralelo con Debezium por usar `8083`. |
 | ScyllaDB | `server-sdd/scylladb/` | Expone CQL en `9042`. |
 
 ## Preparacion
@@ -21,22 +23,26 @@ En cada servidor, renombre los archivos de configuracion una sola vez. Luego edi
 # En 192.168.3.204 (server-sdd)
 mv server-sdd/scylladb/.env.example server-sdd/scylladb/.env
 
-# En 192.168.3.21 (server-hdd)
+# En 192.168.3.219 (server-hdd)
 mv server-hdd/sql-server/.env.example server-hdd/sql-server/.env
 mv server-hdd/kafka/.env.example server-hdd/kafka/.env
 mv server-hdd/kafka/topics.env.example server-hdd/kafka/topics.env
-mv server-hdd/kafka-connect/.env.example server-hdd/kafka-connect/.env
+mv server-hdd/kafka-connect-debezium/.env.example server-hdd/kafka-connect-debezium/.env
+mv server-hdd/kafka-connect-sink/.env.example server-hdd/kafka-connect-sink/.env
 ```
 
 Configure estas IPs antes del arranque:
 
 ```env
 # server-hdd/kafka/.env
-KAFKA_ADVERTISED_HOST=192.168.3.21
+KAFKA_ADVERTISED_HOST=192.168.3.219
 
-# server-hdd/kafka-connect/.env
-SQLSERVER_HOST=192.168.3.21
-KAFKA_BOOTSTRAP_SERVERS=192.168.3.21:9092
+# server-hdd/kafka-connect-debezium/.env
+SQLSERVER_HOST=192.168.3.219
+KAFKA_BOOTSTRAP_SERVERS=192.168.3.219:9092
+
+# server-hdd/kafka-connect-sink/.env
+KAFKA_BOOTSTRAP_SERVERS=192.168.3.219:9092
 SCYLLA_CONTACT_POINTS=192.168.3.204
 ```
 
@@ -70,7 +76,7 @@ Para reiniciar la POC desde cero, ejecute antes de este bloque: `docker compose 
 
 En arranques posteriores con los datos existentes, omita el bootstrap y valide directamente con `cassandra/Sysadmin321++`. Continue solo cuando ScyllaDB este `Up`, el cambio de contraseña haya terminado y los tres scripts CQL se hayan ejecutado correctamente.
 
-### 2. SQL Server en server-hdd (Podman, 192.168.3.21)
+### 2. SQL Server en server-hdd (Podman, 192.168.3.219)
 
 ```sh
 cd server-hdd/sql-server
@@ -176,7 +182,7 @@ Para eliminar solo el contenedor y red Compose, conservando datos y backups:
 podman compose down
 ```
 
-### 3. Kafka en server-hdd (Podman, 192.168.3.21)
+### 3. Kafka en server-hdd (Podman, 192.168.3.219)
 
 ```sh
 sudo mkdir -p /var/app/kafka
@@ -185,6 +191,8 @@ sudo chmod 777 -R /var/app/kafka
 cd server-hdd/kafka
 test -f .env || cp .env.example .env
 test -f topics.env || cp topics.env.example topics.env
+# In an existing deployment, merge the arify-debezium-* and arify-sink-* variables
+# from topics.env.example into topics.env before creating the new internal topics.
 podman compose up -d --remove-orphans
 podman compose ps
 podman exec -it arify-kafka /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092
@@ -205,7 +213,14 @@ for topic in "$CDC_TOPIC_KARDEX" "$CDC_TOPIC_AGENCIA" "$CDC_TOPIC_CANAL"; do
     --config retention.ms=300000 --config segment.ms=60000
 done
 
-for topic in "$CONNECT_CONFIG_TOPIC" "$CONNECT_OFFSET_TOPIC" "$CONNECT_STATUS_TOPIC" "$SCHEMA_HISTORY_TOPIC"; do
+for topic in \
+  "$DEBEZIUM_CONNECT_CONFIG_TOPIC" \
+  "$DEBEZIUM_CONNECT_OFFSET_TOPIC" \
+  "$DEBEZIUM_CONNECT_STATUS_TOPIC" \
+  "$SCHEMA_HISTORY_TOPIC" \
+  "$SINK_CONNECT_CONFIG_TOPIC" \
+  "$SINK_CONNECT_OFFSET_TOPIC" \
+  "$SINK_CONNECT_STATUS_TOPIC"; do
   podman exec -it arify-kafka /opt/kafka/bin/kafka-topics.sh \
     --bootstrap-server localhost:9092 \
     --create --if-not-exists --topic "$topic" \
@@ -220,37 +235,56 @@ Valide los topicos antes de iniciar Kafka Connect:
 podman exec -it arify-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
 ```
 
-### 4. Kafka Connect en server-hdd (Podman, 192.168.3.21)
+### 4. Kafka Connect Debezium en server-hdd (Podman, 192.168.3.219)
 
 ```sh
-cd server-hdd/kafka-connect
+podman stop arify-kafka-connect 2>/dev/null || true
+
+cd server-hdd/kafka-connect-debezium
 test -f .env || cp .env.example .env
 nc -vz 192.168.3.219 9092
 nc -vz 192.168.3.219 1433
-nc -vz 192.168.3.204 9042
 podman compose up -d --remove-orphans
 podman compose ps
 curl -fsS http://127.0.0.1:8083/connectors
+bash register-debezium.sh
+curl -s http://127.0.0.1:8083/connectors/debezium-sqlserver/status
 ```
 
-El `.env` de Kafka Connect debe conservar `SQLSERVER_DB=my_db_transaction` y usar `KAFKA_BOOTSTRAP_SERVERS=192.168.3.219:9092`, `SQLSERVER_HOST=192.168.3.219` y `SCYLLA_CONTACT_POINTS=192.168.3.204`.
+El `.env` de Debezium debe conservar `SQLSERVER_DB=my_db_transaction` y usar `KAFKA_BOOTSTRAP_SERVERS=192.168.3.219:9092` y `SQLSERVER_HOST=192.168.3.219`.
 
-### 5. Registro de conectores en server-hdd
+No inicie el Sink ni modifique ScyllaDB hasta que el Source produzca mensajes Kafka. Confirme offset mayor que `0` tras el snapshot o un nuevo cambio CDC:
 
 ```sh
-cd server-hdd/kafka-connect
-bash kafka-debizium.sh
-curl -s http://127.0.0.1:8083/connectors?expand=status
+podman exec arify-kafka /opt/kafka/bin/kafka-get-offsets.sh \
+  --bootstrap-server localhost:9092 \
+  --topic sqlserver.my_db_transaction.dbo.SI_FinAgenciaCCE
 ```
 
-Registre los conectores solo despues de confirmar que ScyllaDB, el esquema CQL, SQL Server y los topicos Kafka estan preparados. SQL Server y Kafka pueden arrancar en paralelo, pero la secuencia anterior evita registrar conectores contra dependencias aun no preparadas.
+### 5. Kafka Connect Sink en server-hdd (Podman, 192.168.3.219)
+
+Solo despues de que ScyllaDB, sus tablas CQL, rol Sink y el Source se hayan validado:
+
+```sh
+cd server-hdd/kafka-connect-sink
+test -f .env || cp .env.example .env
+nc -vz 192.168.3.219 9092
+nc -vz 192.168.3.204 9042
+podman compose up -d --remove-orphans
+podman compose ps
+curl -fsS http://127.0.0.1:8084/connectors
+bash register-sink.sh
+curl -s http://127.0.0.1:8084/connectors/scylladb-sink/status
+```
+
+Registre el Sink solo cuando su task sea `RUNNING`. Produzca entonces un evento manual nuevo para validar `Kafka -> Sink -> ScyllaDB`; no use mensajes publicados antes de registrar el Sink como prueba de aceptación.
 
 ## Contratos que deben coincidir
 
-- `SQLSERVER_DB`, `DEBEZIUM_USER` y su secreto deben coincidir entre el componente SQL Server y Kafka Connect, aunque se almacenen en `.env` distintos.
-- Los topicos de `kafka/topics.env` deben copiarse sin cambios al `.env` de Kafka Connect.
-- `KAFKA_ADVERTISED_HOST:KAFKA_ADVERTISED_PORT` debe ser alcanzable desde Kafka Connect y coincidir con `KAFKA_BOOTSTRAP_SERVERS`.
-- `SCYLLA_LOCAL_DC` debe ser identico en ScyllaDB y Kafka Connect.
-- `SCYLLA_SINK_USERNAME` y `SCYLLA_SINK_PASSWORD` deben coincidir entre ScyllaDB y Kafka Connect. Los microservicios usan el rol de solo lectura o roles dedicados, nunca el superusuario `cassandra`.
+- `SQLSERVER_DB`, `DEBEZIUM_USER` y su secreto deben coincidir entre SQL Server y `kafka-connect-debezium`, aunque se almacenen en `.env` distintos.
+- Los topicos CDC de `kafka/topics.env` deben coincidir en ambos workers. Cada worker debe conservar sus topicos internos exclusivos `arify-debezium-*` o `arify-sink-*`.
+- `KAFKA_ADVERTISED_HOST:KAFKA_ADVERTISED_PORT` debe ser alcanzable desde ambos workers y coincidir con `KAFKA_BOOTSTRAP_SERVERS`.
+- `SCYLLA_LOCAL_DC` debe ser identico en ScyllaDB y `kafka-connect-sink`.
+- `SCYLLA_SINK_USERNAME` y `SCYLLA_SINK_PASSWORD` deben coincidir entre ScyllaDB y `kafka-connect-sink`. Los microservicios usan el rol de solo lectura o roles dedicados, nunca el superusuario `cassandra`.
 
 Los `.env` no se versionan. Consulte el README de cada componente antes de desplegarlo.

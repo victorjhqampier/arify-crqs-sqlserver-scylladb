@@ -11,9 +11,9 @@ test -f .env || cp .env.example .env
 test -f topics.env || cp topics.env.example topics.env
 ```
 
-`.env` contiene el cluster KRaft y su endpoint externo. Genere `KAFKA_CLUSTER_ID` una sola vez y conserve el valor. `KAFKA_ADVERTISED_HOST` debe ser resoluble desde Kafka Connect.
+`.env` contiene el cluster KRaft y su endpoint externo. Genere `KAFKA_CLUSTER_ID` una sola vez y conserve el valor. `KAFKA_ADVERTISED_HOST` debe ser resoluble desde ambos workers Kafka Connect.
 
-`topics.env` es el contrato de nombres de topicos: los tres topicos CDC, topicos internos Connect y el historial Debezium. No contiene secretos. Sus nombres deben coincidir con el contrato configurado en Kafka Connect.
+`topics.env` es el contrato de nombres de topicos: los tres topicos CDC compartidos, los topicos internos exclusivos de cada worker y el historial Debezium. No contiene secretos. Sus nombres deben coincidir con los `.env` de los componentes Connect.
 
 Los datos se persisten en `/var/app/kafka`. Cree y otorgue permisos a esa ruta antes del primer arranque segun el usuario de la imagen Kafka.
 
@@ -49,10 +49,17 @@ for topic in "$CDC_TOPIC_KARDEX" "$CDC_TOPIC_AGENCIA" "$CDC_TOPIC_CANAL"; do
 done
 ```
 
-Crear los topicos internos de Kafka Connect y el historial de Debezium como compactados, sin la retencion de cinco minutos:
+Crear los topicos internos exclusivos de ambos workers y el historial Debezium como compactados, sin la retencion de cinco minutos:
 
 ```sh
-for topic in "$CONNECT_CONFIG_TOPIC" "$CONNECT_OFFSET_TOPIC" "$CONNECT_STATUS_TOPIC" "$SCHEMA_HISTORY_TOPIC"; do
+for topic in \
+  "$DEBEZIUM_CONNECT_CONFIG_TOPIC" \
+  "$DEBEZIUM_CONNECT_OFFSET_TOPIC" \
+  "$DEBEZIUM_CONNECT_STATUS_TOPIC" \
+  "$SCHEMA_HISTORY_TOPIC" \
+  "$SINK_CONNECT_CONFIG_TOPIC" \
+  "$SINK_CONNECT_OFFSET_TOPIC" \
+  "$SINK_CONNECT_STATUS_TOPIC"; do
   podman exec -it arify-kafka /opt/kafka/bin/kafka-topics.sh \
     --bootstrap-server localhost:9092 \
     --create --if-not-exists --topic "$topic" \
@@ -67,8 +74,3 @@ Valide los topicos antes de registrar Debezium:
 podman exec -it arify-kafka /opt/kafka/bin/kafka-topics.sh \
   --bootstrap-server localhost:9092 --list
 ```
-
-
-## conandos
-skynet  …/arify-crqs-sqlserver-scylladb/server-hdd/kafka-connect   main ?    podman exec -it arify-kafka /opt/kafka/bin/kafka-get-offsets.sh   --bootstrap-server localhost:9092   --topic sqlserver.my_db_transaction.dbo.SI_FinAgenciaCCE
-sqlserver.my_db_transaction.dbo.SI_FinAgenciaCCE:0:0

@@ -6,7 +6,8 @@
 | Componente | Funcion | Regla clave |
 | --- | --- | --- |
 | SQL Server | Modelo de escritura y fuente CDC. | Escuchar solo `SI_FinKardex`, `SI_FinAgenciaCCE` y `SI_FinCanalCCE`. |
-| Kafka Connect | Ejecuta conectores de entrada y salida. | Aloja Debezium Source y, por defecto, el Sink CQL. |
+| Kafka Connect Debezium | Ejecuta exclusivamente Debezium Source. | Worker separado para aislar `SQL Server CDC -> Kafka`. |
+| Kafka Connect Sink | Ejecuta exclusivamente el Sink CQL. | Worker separado para aislar `Kafka -> ScyllaDB`. |
 | Debezium SQL Server Source | Lee CDC de SQL Server y publica eventos. | Es un plugin de Kafka Connect, no un servicio independiente. |
 | Kafka con KRaft | Almacena y distribuye eventos; KRaft gestiona metadatos. | Kafka no escribe en ScyllaDB y no se debe desplegar ZooKeeper. |
 | Mecanismo de proyeccion | Consume eventos Kafka y crea los modelos de lectura. | El valor predeterminado es Kafka Connect Sink; elegir otro solo si la proyeccion lo requiere. |
@@ -41,10 +42,14 @@ server-hdd/
   kafka/                          # Broker KRaft y topicos CDC
     docker-compose.yml
     topics.env.example             # Contrato sin secretos de nombres de topicos
-  kafka-connect/                  # Connect, plugins y conectores Debezium/Sink
+  kafka-connect-debezium/         # Worker Connect y plugin Debezium SQL Server
     docker-compose.yml
-    plugins/                      # JARs de Debezium SQL Server y DataStax Cassandra Sink
-    connectors/                   # JSON de registro de conectores via API REST
+    plugins/
+    connectors/                   # JSON Source registrado via API REST en 8083
+  kafka-connect-sink/             # Worker Connect y plugin DataStax Cassandra Sink
+    docker-compose.yml
+    plugins/
+    connectors/                   # Plantilla Sink registrada via API REST en 8084
 server-sdd/
   scylladb/                       # ScyllaDB, esquemas CQL manuales y valores del componente
     docker-compose.yml
@@ -53,14 +58,15 @@ server-sdd/
       10-proyecciones.cql         # Tablas de proyeccion para las tres tablas CDC
 ```
 
-- `server-hdd/kafka-connect/kafka-debizium.sh` esta reservado para Kafka Connect y Debezium.
+- `server-hdd/kafka-connect/` es un componente legado de migracion; conservarlo apagado hasta validar los dos workers separados.
+- `server-hdd/kafka-connect-debezium/register-debezium.sh` registra solo Debezium; `server-hdd/kafka-connect-sink/register-sink.sh` registra solo el Sink.
 
 ## Despliegue Compose
-- Mantener un Compose por componente: `sql-server/`, `kafka/`, `kafka-connect/` y `scylladb/`.
+- Mantener un Compose por componente: `sql-server/`, `kafka/`, `kafka-connect-debezium/`, `kafka-connect-sink/` y `scylladb/`.
 - Cada Compose tiene red, variables y archivos propios; no puede usar `depends_on`, DNS interno, bind mounts ni `.env` de otro componente.
 - Los componentes se integran solo por IP/DNS, puertos y contratos de topicos configurables; deben poder moverse a repositorios y servidores distintos.
 - SQL Server y ScyllaDB se inician solos; sus restauraciones, esquemas, roles y CDC se aplican manualmente despues del bootstrap. Kafka inicia solo el broker; los topicos se crean manualmente despues de validar que responde.
-- Kafka Connect es el unico componente que recibe endpoints externos de SQL Server, Kafka y ScyllaDB en su propio `.env`.
+- `kafka-connect-debezium` recibe endpoints SQL Server y Kafka; `kafka-connect-sink` recibe endpoints Kafka y ScyllaDB en sus `.env` propios.
 
 ## Orden de Arranque
 
@@ -70,11 +76,13 @@ server-sdd/
 | 2 | Bootstrap CQL manual | Cambia `cassandra/cassandra`, ejecuta `00-keyspace.cql`, `10-proyecciones.cql` y `90-bootstrap-roles.cql` | Keyspace, tablas y roles existen. |
 | 3 | SQL Server | Restaura `db_transaction.bak` como `my_db_transaction`, habilita SQL Server Agent y ejecuta `init-cdc.sh` | SQL responde y CDC esta habilitado. |
 | 4 | Kafka | `kafka-broker-api-versions.sh --bootstrap-server localhost:9092` | Broker responde y los topicos CDC e internos se crean manualmente. |
-| 5 | Kafka Connect | `curl -s http://localhost:8083/connectors` | API REST responde. |
-| 6 | Registrar conectores | `curl -X POST` a la API REST | Conectores en estado RUNNING. |
+| 5 | Kafka Connect Debezium | `curl -s http://localhost:8083/connectors` | API REST responde. |
+| 6 | Registrar Debezium y validar Kafka | status del conector y offset del topico CDC | Task RUNNING y offset CDC mayor a `0`. |
+| 7 | Kafka Connect Sink | `curl -s http://localhost:8084/connectors` | API REST responde. |
+| 8 | Registrar Sink y validar ScyllaDB | status del conector y consulta CQL | Task RUNNING y evento manual escrito en ScyllaDB. |
 
 - SQL Server y Kafka pueden arrancar en paralelo, pero sus Compose no se esperan entre si.
-- Kafka Connect se inicia despues de configurar endpoints externos; el Sink no se registra hasta que ScyllaDB tenga el keyspace `arify_cqrs` y las tablas de proyeccion.
+- Kafka Connect Debezium se inicia despues de configurar SQL Server y Kafka; el Sink no se inicia hasta que ScyllaDB tenga el keyspace `arify_cqrs`, las tablas de proyeccion y Debezium haya publicado al menos un evento.
 - `my_db_transaction` es el nombre fijo de la base SQL Server capturada por Debezium. Cualquier backup de prueba se restaura con ese nombre; no crear una base vacia antes del restore ni cambiar el nombre de base de los conectores.
 - Los nombres logicos del backup pueden variar. Obtenerlos con `RESTORE FILELISTONLY` y usarlos solo en las clausulas `MOVE` del restore.
 
@@ -86,9 +94,9 @@ server-sdd/
 ## Limites de Recursos POC
 - Aplicar limites con `cpus` y `mem_limit`; no depender solo de `deploy.resources`.
 - SQL Server: conservar su configuracion validada (`mem_limit: 3g`, sin limite CPU adicional) hasta validar un cambio de capacidad en el servidor destino.
-- Kafka y Kafka Connect: maximo 1 CPU y 1 GB cada uno; limitar el heap JVM a 512 MB.
+- Kafka y cada worker Kafka Connect: maximo 1 CPU y 1 GB; limitar cada heap JVM Connect a 512 MB.
 - ScyllaDB: usar `scylladb/scylla:5.4.9` y conservar su configuracion validada (`--smp 2`, `--memory 2G`, `--overprovisioned 1`) hasta validar un cambio de capacidad en el servidor destino.
-- `server-hdd` requiere aproximadamente 5 GB para sus contenedores y `server-sdd` 2.5 GB, sin contar el sistema operativo.
+- `server-hdd` requiere aproximadamente 6 GB para sus contenedores al ejecutar ambos workers y `server-sdd` 2.5 GB, sin contar el sistema operativo.
 
 ## Kafka POC
 - Aplicar a los topicos CDC `retention.ms=300000`, `segment.ms=60000` y una revision de retencion cada 60 segundos.
@@ -96,8 +104,8 @@ server-sdd/
 - No aplicar la retencion de cinco minutos a los topicos internos de Kafka Connect ni al historial de esquema de Debezium; deben ser compactados y durables.
 
 ## Registro de Conectores y Puertos
-- Guardar los JSON del Source y la plantilla del Sink en `server-hdd/kafka-connect/connectors/`; registrar mediante la API REST solo cuando Kafka Connect, topicos Kafka y esquemas CQL esten sanos.
-- Restringir la API REST de Kafka Connect (`8083`) a administracion; Kafka (`9092`) solo requiere acceso de sus clientes; el listener controlador KRaft no se expone.
+- Guardar el JSON Source en `server-hdd/kafka-connect-debezium/connectors/` y la plantilla Sink en `server-hdd/kafka-connect-sink/connectors/`; registrar cada uno solo cuando sus dependencias esten sanas.
+- Restringir las API REST de Kafka Connect Debezium (`8083`) y Sink (`8084`) a administracion; Kafka (`9092`) solo requiere acceso de sus clientes; el listener controlador KRaft no se expone.
 - SQL Server usa `1433`; ScyllaDB debe exponer CQL (`9042`) y permitir acceso desde `server-hdd`.
 
 ## Convencion de Topicos

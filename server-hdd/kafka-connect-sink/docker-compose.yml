@@ -1,0 +1,50 @@
+# Dedicated Kafka Connect worker for Kafka CDC topics -> ScyllaDB through the DataStax Sink.
+name: arify-kafka-connect-sink
+
+services:
+  kafka-connect-sink:
+    build:
+      context: .
+      args:
+        CP_KAFKA_CONNECT_VERSION: 7.7.1
+        DATASTAX_SINK_VERSION: 1.7.6
+        DATASTAX_SINK_SHA256: 83db4a8b7edbd73c4cd17c151718c88a5dc33e34d90f1ed80e7f632d75dc8d25
+    container_name: arify-kafka-connect-sink
+    hostname: arify-kafka-connect-sink
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      # Kafka and ScyllaDB are external endpoints defined in this component's .env.
+      CONNECT_BOOTSTRAP_SERVERS: "${KAFKA_BOOTSTRAP_SERVERS}"
+      CONNECT_REST_ADVERTISED_HOST_NAME: arify-kafka-connect-sink
+      CONNECT_REST_PORT: "8083"
+      CONNECT_GROUP_ID: "${CONNECT_GROUP_ID}"
+      CONNECT_CONFIG_STORAGE_TOPIC: "${CONNECT_CONFIG_TOPIC}"
+      CONNECT_OFFSET_STORAGE_TOPIC: "${CONNECT_OFFSET_TOPIC}"
+      CONNECT_STATUS_STORAGE_TOPIC: "${CONNECT_STATUS_TOPIC}"
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components,/usr/share/kafka/plugins,/opt/kafka-connect/custom-plugins
+      CONNECT_CONFIG_PROVIDERS: env
+      CONNECT_CONFIG_PROVIDERS_ENV_CLASS: org.apache.kafka.common.config.provider.EnvVarConfigProvider
+      KAFKA_HEAP_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      # Host port differs from the Debezium worker; container REST port remains 8083.
+      - "127.0.0.1:8084:8083"
+    volumes:
+      - ./connectors:/connectors:ro
+      - ./plugins:/opt/kafka-connect/custom-plugins:ro
+    cpus: 1.0
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/connectors >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
