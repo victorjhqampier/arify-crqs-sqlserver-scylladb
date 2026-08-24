@@ -7,7 +7,8 @@ ARG DATASTAX_SINK_VERSION=1.7.6
 ARG DATASTAX_SINK_SHA256
 
 USER root
-RUN curl -fsSL -o /tmp/debezium-sqlserver-plugin.tar.gz \
+RUN mkdir -p /usr/share/kafka/plugins \
+    && curl -fsSL -o /tmp/debezium-sqlserver-plugin.tar.gz \
       "https://repo1.maven.org/maven2/io/debezium/debezium-connector-sqlserver/${DEBEZIUM_VERSION}/debezium-connector-sqlserver-${DEBEZIUM_VERSION}-plugin.tar.gz" \
     && tar -xzf /tmp/debezium-sqlserver-plugin.tar.gz -C /usr/share/kafka/plugins \
     && rm /tmp/debezium-sqlserver-plugin.tar.gz \
