@@ -20,7 +20,7 @@ nc -vz 192.168.3.204 9042
 
 `connectors/debezium-sqlserver.json` recibe valores por variables de entorno. `connectors/scylladb-sink.json.template` se renderiza localmente durante el registro porque los nombres de topico son parte de las claves de mapeo. El Sink escribe en `si_fin_kardex`, `si_fin_agencia_cce` y `si_fin_canal_cce` del keyspace `arify_cqrs`.
 
-El Source Debezium captura exclusivamente `my_db_transaction.dbo.SI_FinKardex`, `my_db_transaction.dbo.SI_FinAgenciaCCE` y `my_db_transaction.dbo.SI_FinCanalCCE`. Para aplicar un cambio de filtro sin reconfigurar el Sink, ejecute `bash kafka-debizium.sh debezium-sqlserver`.
+El Source Debezium se conecta a `my_db_transaction` y captura exclusivamente `dbo.SI_FinKardex`, `dbo.SI_FinAgenciaCCE` y `dbo.SI_FinCanalCCE`. Para aplicar un cambio de filtro sin reconfigurar el Sink, ejecute `bash kafka-debizium.sh debezium-sqlserver`.
 
 ## Arranque y registro
 

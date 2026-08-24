@@ -111,7 +111,7 @@ server-sdd/
 - `connector.class`: `io.debezium.connector.sqlserver.SqlServerConnector`
 - `database.hostname`, `database.port`, `database.user`, `database.password`
 - `database.names`: base de datos a capturar
-- `table.include.list`: `{database}.dbo.SI_FinKardex,{database}.dbo.SI_FinAgenciaCCE,{database}.dbo.SI_FinCanalCCE`
+- `table.include.list`: `dbo.SI_FinKardex,dbo.SI_FinAgenciaCCE,dbo.SI_FinCanalCCE` para los identificadores CDC comparados por Debezium en esta POC.
 - `topic.prefix`: prefijo para los topicos
 - `schema.history.internal.kafka.topic`: topico para historial de esquema (compactado)
 - `schema.history.internal.kafka.bootstrap.servers`

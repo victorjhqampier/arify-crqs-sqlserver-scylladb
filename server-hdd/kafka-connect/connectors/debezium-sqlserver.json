@@ -9,7 +9,7 @@
   "database.encrypt": "false",
   "database.trustServerCertificate": "true",
   "topic.prefix": "${env:CDC_TOPIC_PREFIX}",
-  "table.include.list": "my_db_transaction\\.dbo\\.SI_FinKardex,my_db_transaction\\.dbo\\.SI_FinAgenciaCCE,my_db_transaction\\.dbo\\.SI_FinCanalCCE",
+  "table.include.list": "dbo\\.SI_FinKardex,dbo\\.SI_FinAgenciaCCE,dbo\\.SI_FinCanalCCE",
   "snapshot.mode": "initial",
   "decimal.handling.mode": "string",
   "schema.history.internal.kafka.bootstrap.servers": "${env:KAFKA_BOOTSTRAP_SERVERS}",
