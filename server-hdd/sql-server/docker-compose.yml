@@ -14,8 +14,10 @@ services:
     ports:
       - "1433:1433"
     volumes:
+      # La base se restaura manualmente desde db_transaction.bak; este mount conserva sus datos.
       - /var/app/mssql:/var/opt/mssql
       - /var/apps/database/mssql/backups:/var/opt/mssql/backups
+      # Los scripts CDC se ejecutan manualmente despues de restaurar la base.
       - ./init:/scripts:ro
     mem_limit: 3g
     healthcheck:

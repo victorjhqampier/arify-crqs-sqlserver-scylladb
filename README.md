@@ -224,10 +224,16 @@ podman exec -it arify-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server lo
 
 ```sh
 cd server-hdd/kafka-connect
-podman compose up -d
+test -f .env || cp .env.example .env
+nc -vz 192.168.3.219 9092
+nc -vz 192.168.3.219 1433
+nc -vz 192.168.3.204 9042
+podman compose up -d --remove-orphans
 podman compose ps
 curl -fsS http://127.0.0.1:8083/connectors
 ```
+
+El `.env` de Kafka Connect debe conservar `SQLSERVER_DB=my_db_transaction` y usar `KAFKA_BOOTSTRAP_SERVERS=192.168.3.219:9092`, `SQLSERVER_HOST=192.168.3.219` y `SCYLLA_CONTACT_POINTS=192.168.3.204`.
 
 ### 5. Registro de conectores en server-hdd
 

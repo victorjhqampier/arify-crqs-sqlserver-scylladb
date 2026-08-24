@@ -5,17 +5,27 @@ Este componente ejecuta Debezium SQL Server Source y el Sink DataStax hacia Scyl
 ## Configuracion
 
 ```sh
-cp .env.example .env
+test -f .env || cp .env.example .env
 ```
 
-Configure los endpoints `KAFKA_BOOTSTRAP_SERVERS`, `SQLSERVER_HOST` y `SCYLLA_CONTACT_POINTS`; los secretos Debezium; las credenciales `SCYLLA_SINK_USERNAME` y `SCYLLA_SINK_PASSWORD` del rol de escritura; y los nombres de topicos copiados manualmente desde el contrato publicado por el componente Kafka.
+El ejemplo usa los endpoints de la POC: Kafka `192.168.3.219:9092`, SQL Server `192.168.3.219:1433` y ScyllaDB `192.168.3.204:9042`. Mantenga `SQLSERVER_DB=my_db_transaction`, los topicos publicados por Kafka y los secretos Debezium/ScyllaDB adecuados para el entorno.
+
+Valide la conectividad antes de iniciar Kafka Connect:
+
+```sh
+nc -vz 192.168.3.219 9092
+nc -vz 192.168.3.219 1433
+nc -vz 192.168.3.204 9042
+```
 
 `connectors/debezium-sqlserver.json` recibe valores por variables de entorno. `connectors/scylladb-sink.json.template` se renderiza localmente durante el registro porque los nombres de topico son parte de las claves de mapeo. Reemplace las columnas placeholder por el DDL y las consultas de lectura reales.
 
 ## Arranque y registro
 
 ```sh
-docker compose up -d
+podman compose up -d --remove-orphans
+podman compose ps
+curl -fsS http://127.0.0.1:8083/connectors
 bash kafka-debizium.sh
 ```
 

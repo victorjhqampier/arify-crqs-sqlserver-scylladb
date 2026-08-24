@@ -11,12 +11,14 @@ services:
       - ./.env
     environment:
       KAFKA_HEAP_OPTS: "-Xms512m -Xmx512m"
+    # Formatea KRaft solo en el primer arranque y luego inicia el broker.
     entrypoint: ["/bin/bash", "/etc/kafka/start-kraft.sh"]
     ports:
       - "9092:9092"
     volumes:
       - ./config/server.properties:/etc/kafka/server.properties:ro
       - ./start-kraft.sh:/etc/kafka/start-kraft.sh:ro
+      # Conserva logs y metadatos KRaft; no borrar salvo reinicio total de la POC.
       - /var/app/kafka:/var/lib/kafka/data
     cpus: 1.0
     mem_limit: 1g
