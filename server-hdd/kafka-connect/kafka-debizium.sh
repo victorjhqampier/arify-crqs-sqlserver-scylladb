@@ -27,11 +27,24 @@ sed \
   -e "s|__SCYLLA_KEYSPACE__|$(escape_sed "${SCYLLA_KEYSPACE}")|g" \
   "${component_dir}/connectors/scylladb-sink.json.template" > "${rendered_sink}"
 
-for connector in debezium-sqlserver scylladb-sink; do
-  config="${component_dir}/connectors/${connector}.json"
-  if [[ "${connector}" == "scylladb-sink" ]]; then
-    config="${rendered_sink}"
-  fi
+connectors=("$@")
+if (( ${#connectors[@]} == 0 )); then
+  connectors=(debezium-sqlserver scylladb-sink)
+fi
+
+for connector in "${connectors[@]}"; do
+  case "${connector}" in
+    debezium-sqlserver)
+      config="${component_dir}/connectors/debezium-sqlserver.json"
+      ;;
+    scylladb-sink)
+      config="${rendered_sink}"
+      ;;
+    *)
+      printf 'Unknown connector: %s\n' "${connector}" >&2
+      exit 2
+      ;;
+  esac
   curl --fail --show-error --silent \
     --request PUT \
     --header 'Content-Type: application/json' \
