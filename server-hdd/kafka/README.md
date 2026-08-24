@@ -67,3 +67,8 @@ Valide los topicos antes de registrar Debezium:
 podman exec -it arify-kafka /opt/kafka/bin/kafka-topics.sh \
   --bootstrap-server localhost:9092 --list
 ```
+
+
+## conandos
+skynet  …/arify-crqs-sqlserver-scylladb/server-hdd/kafka-connect   main ?    podman exec -it arify-kafka /opt/kafka/bin/kafka-get-offsets.sh   --bootstrap-server localhost:9092   --topic sqlserver.my_db_transaction.dbo.SI_FinAgenciaCCE
+sqlserver.my_db_transaction.dbo.SI_FinAgenciaCCE:0:0
