@@ -7,7 +7,7 @@ services:
       context: .
       args:
         CP_KAFKA_CONNECT_VERSION: 7.7.1
-        DEBEZIUM_VERSION: 2.7.3
+        DEBEZIUM_VERSION: 2.7.3.Final
         DATASTAX_SINK_VERSION: 1.7.6
         DATASTAX_SINK_SHA256: 83db4a8b7edbd73c4cd17c151718c88a5dc33e34d90f1ed80e7f632d75dc8d25
     container_name: arify-kafka-connect
