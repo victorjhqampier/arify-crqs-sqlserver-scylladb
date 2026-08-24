@@ -1,3 +1,0 @@
-# Connector templates
-
-`debezium-sqlserver.json` recibe endpoints mediante variables de entorno de Kafka Connect. En esta POC, `database.names` fija la conexion a `my_db_transaction` y `table.include.list` usa expresiones regulares `dbo.SI_*`, que son los identificadores que Debezium compara contra las instancias CDC detectadas. `scylladb-sink.json.template` se renderiza localmente con los nombres de topicos y keyspace del `.env` de este componente; mapea los tres topicos CDC a `si_fin_kardex`, `si_fin_agencia_cce` y `si_fin_canal_cce`. Como las columnas CQL no estan entre comillas, el lado izquierdo de cada mapping usa sus nombres en minusculas. Las tablas SQL Server ya existen y este repositorio nunca las crea.

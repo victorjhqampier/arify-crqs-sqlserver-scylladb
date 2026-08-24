@@ -12,7 +12,6 @@ Cada componente tiene su propio Compose, variables, red Docker y README. Puede v
 | Kafka | `server-hdd/kafka/` | Expone el broker configurado en `KAFKA_ADVERTISED_HOST:KAFKA_ADVERTISED_PORT`. |
 | Kafka Connect Debezium | `server-hdd/kafka-connect-debezium/` | Worker exclusivo para `SQL Server CDC -> Kafka`; REST local `8083`. |
 | Kafka Connect Sink | `server-hdd/kafka-connect-sink/` | Worker exclusivo para `Kafka -> ScyllaDB`; REST local `8084`. |
-| Kafka Connect legado | `server-hdd/kafka-connect/` | Se conserva sin cambios hasta validar ambos workers nuevos; no debe ejecutarse en paralelo con Debezium por usar `8083`. |
 | ScyllaDB | `server-sdd/scylladb/` | Expone CQL en `9042`. |
 
 ## Preparacion
@@ -238,8 +237,6 @@ podman exec -it arify-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server lo
 ### 4. Kafka Connect Debezium en server-hdd (Podman, 192.168.3.219)
 
 ```sh
-podman stop arify-kafka-connect 2>/dev/null || true
-
 cd server-hdd/kafka-connect-debezium
 test -f .env || cp .env.example .env
 nc -vz 192.168.3.219 9092

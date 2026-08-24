@@ -58,7 +58,6 @@ server-sdd/
       10-proyecciones.cql         # Tablas de proyeccion para las tres tablas CDC
 ```
 
-- `server-hdd/kafka-connect/` es un componente legado de migracion; conservarlo apagado hasta validar los dos workers separados.
 - `server-hdd/kafka-connect-debezium/register-debezium.sh` registra solo Debezium; `server-hdd/kafka-connect-sink/register-sink.sh` registra solo el Sink.
 
 ## Despliegue Compose
