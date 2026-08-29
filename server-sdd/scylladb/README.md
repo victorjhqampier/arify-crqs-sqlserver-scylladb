@@ -10,7 +10,7 @@ mv .env.example .env
 
 Compose es la definicion de despliegue: un unico contenedor `arify-scylladb`, imagen fija `scylladb/scylla:5.4.9`, puerto `9042`, reinicio `always`, bind mount `/var/apps/scylladb/data:/var/lib/scylla`, `--smp 2`, `--memory 2G` y `--overprovisioned 1`.
 
-`SCYLLA_LOCAL_DC` debe coincidir con el valor configurado en Kafka Connect. Actualice `cql/10-proyecciones.cql` a partir de las consultas de lectura y el DDL real; no replique el esquema SQL Server literalmente.
+`SCYLLA_LOCAL_DC` debe coincidir con el valor configurado en Kafka Connect. Actualice `cql/10-proyecciones.cql` a partir de las consultas de lectura y el DDL real; no replique el esquema SQL Server literalmente. `cql/20-healthcheck.cql` crea una tabla minima para validar `Kafka -> Sink -> ScyllaDB` antes de iniciar SQL Server/Debezium.
 
 La autenticacion CQL y autorizacion estan activas. En un arranque limpio, ScyllaDB expone el bootstrap `cassandra/cassandra`. Cambie esa clave manualmente a `Sysadmin321++`, aplique los esquemas y ejecute `cql/90-bootstrap-roles.cql` con la clave nueva. El ultimo archivo crea `arify_kafka_sink` con permiso `MODIFY` y `arify_readonly` con permiso `SELECT` sobre `arify_cqrs`.
 
@@ -45,6 +45,7 @@ Cuando aparezca `initialization completed`, ejecute el bootstrap manual una sola
 docker exec -i arify-scylladb cqlsh -u cassandra -p cassandra -e "ALTER ROLE cassandra WITH PASSWORD = 'Sysadmin321++';"
 docker exec -i arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++' < cql/00-keyspace.cql
 docker exec -i arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++' < cql/10-proyecciones.cql
+docker exec -i arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++' < cql/20-healthcheck.cql
 docker exec -i arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++' < cql/90-bootstrap-roles.cql
 docker exec -it arify-scylladb cqlsh -u cassandra -p 'Sysadmin321++'
 ```

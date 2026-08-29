@@ -14,6 +14,7 @@
 | ScyllaDB | Almacena los modelos de lectura mediante CQL. | Disenar tablas por consulta; no replicar literalmente el esquema SQL Server. |
 
 - SQL Server y sus tres tablas fuente ya existen: los scripts solo validan, crean el acceso Debezium y habilitan CDC; nunca crean ni alteran el esquema de escritura.
+- Antes de iniciar SQL Server/Debezium en un despliegue nuevo, validar `Kafka -> Kafka Connect Sink -> ScyllaDB` con el topico `arify.healthcheck.scylla` y la tabla `arify_cqrs.kafka_sink_healthcheck`.
 - Docker Compose es la definicion de despliegue. Las configuraciones heredadas validadas deben conservar imagen, nombre, hostname, reinicio, puertos, variables, limites y bind mounts; no sustituir rutas de datos por volumenes nombrados ni introducir parametros del motor sin validacion.
 
 ## Tecnologias Seleccionadas
@@ -56,6 +57,7 @@ server-sdd/
     cql/                          # Scripts CQL ordenados por prefijo numerico
       00-keyspace.cql             # CREATE KEYSPACE arify_cqrs
       10-proyecciones.cql         # Tablas de proyeccion para las tres tablas CDC
+      20-healthcheck.cql           # Tabla minima para validar Kafka -> Sink -> ScyllaDB
 ```
 
 - `server-hdd/kafka-connect-debezium/register-debezium.sh` registra solo Debezium; `server-hdd/kafka-connect-sink/register-sink.sh` registra solo el Sink.
@@ -72,16 +74,17 @@ server-sdd/
 | Paso | Servicio | Healthcheck | Condicion para continuar |
 | --- | --- | --- | --- |
 | 1 | ScyllaDB | `docker compose ps` | Contenedor ScyllaDB en estado `Up`. |
-| 2 | Bootstrap CQL manual | Cambia `cassandra/cassandra`, ejecuta `00-keyspace.cql`, `10-proyecciones.cql` y `90-bootstrap-roles.cql` | Keyspace, tablas y roles existen. |
-| 3 | SQL Server | Restaura `db_transaction.bak` como `my_db_transaction`, habilita SQL Server Agent y ejecuta `init-cdc.sh` | SQL responde y CDC esta habilitado. |
-| 4 | Kafka | `kafka-broker-api-versions.sh --bootstrap-server localhost:9092` | Broker responde y los topicos CDC e internos se crean manualmente. |
-| 5 | Kafka Connect Debezium | `curl -s http://localhost:8083/connectors` | API REST responde. |
-| 6 | Registrar Debezium y validar Kafka | status del conector y offset del topico CDC | Task RUNNING y offset CDC mayor a `0`. |
-| 7 | Kafka Connect Sink | `curl -s http://localhost:8084/connectors` | API REST responde. |
-| 8 | Registrar Sink y validar ScyllaDB | status del conector y consulta CQL | Task RUNNING y evento manual escrito en ScyllaDB. |
+| 2 | Bootstrap CQL manual | Cambia `cassandra/cassandra`, ejecuta `00-keyspace.cql`, `10-proyecciones.cql`, `20-healthcheck.cql` y `90-bootstrap-roles.cql` | Keyspace, tablas, healthcheck y roles existen. |
+| 3 | Kafka | `kafka-broker-api-versions.sh --bootstrap-server localhost:9092` | Broker responde y los topicos healthcheck, CDC e internos se crean manualmente. |
+| 4 | Kafka Connect Sink | `curl -s http://localhost:8084/connectors` | API REST responde. |
+| 5 | Healthcheck Kafka -> ScyllaDB | Produce a `arify.healthcheck.scylla` y consulta CQL | Task RUNNING y evento manual escrito en `kafka_sink_healthcheck`. |
+| 6 | SQL Server | Restaura `db_transaction.bak` como `my_db_transaction`, habilita SQL Server Agent y ejecuta `init-cdc.sh` | SQL responde y CDC esta habilitado. |
+| 7 | Kafka Connect Debezium | `curl -s http://localhost:8083/connectors` | API REST responde. |
+| 8 | Registrar Debezium y validar Kafka | status del conector y offset del topico CDC | Task RUNNING y offset CDC mayor a `0`. |
+| 9 | Registrar Sink CDC y validar ScyllaDB | status del conector y consulta CQL | Task RUNNING y eventos CDC escritos en ScyllaDB. |
 
 - SQL Server y Kafka pueden arrancar en paralelo, pero sus Compose no se esperan entre si.
-- Kafka Connect Debezium se inicia despues de configurar SQL Server y Kafka; el Sink no se inicia hasta que ScyllaDB tenga el keyspace `arify_cqrs`, las tablas de proyeccion y Debezium haya publicado al menos un evento.
+- Kafka Connect Sink se inicia antes de SQL Server/Debezium y se valida con healthcheck. Kafka Connect Debezium se inicia despues de configurar SQL Server CDC y Kafka.
 - `my_db_transaction` es el nombre fijo de la base SQL Server capturada por Debezium. Cualquier backup de prueba se restaura con ese nombre; no crear una base vacia antes del restore ni cambiar el nombre de base de los conectores.
 - Los nombres logicos del backup pueden variar. Obtenerlos con `RESTORE FILELISTONLY` y usarlos solo en las clausulas `MOVE` del restore.
 
@@ -100,6 +103,7 @@ server-sdd/
 ## Kafka POC
 - Aplicar a los topicos CDC `retention.ms=300000`, `segment.ms=60000` y una revision de retencion cada 60 segundos.
 - Crear los topicos CDC con esa configuracion antes de registrar el Source Connector; no depender de los valores por defecto del broker.
+- Crear `arify.healthcheck.scylla` con la misma retencion corta para validar el Sink antes de producir eventos CDC reales.
 - No aplicar la retencion de cinco minutos a los topicos internos de Kafka Connect ni al historial de esquema de Debezium. Los topicos internos Connect deben ser compactados; el historial Debezium usa `cleanup.policy=delete` y `retention.ms=-1` porque puede contener registros sin key.
 
 ## Registro de Conectores y Puertos

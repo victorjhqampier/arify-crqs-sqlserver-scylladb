@@ -1,0 +1,10 @@
+{
+  "connector.class": "com.datastax.oss.kafka.sink.CassandraSinkConnector",
+  "tasks.max": "1",
+  "contactPoints": "${env:SCYLLA_CONTACT_POINTS}",
+  "loadBalancing.localDc": "${env:SCYLLA_LOCAL_DC}",
+  "auth.username": "${env:SCYLLA_SINK_USERNAME}",
+  "auth.password": "${env:SCYLLA_SINK_PASSWORD}",
+  "topics": "__HEALTHCHECK_TOPIC__",
+  "topic.__HEALTHCHECK_TOPIC__.__SCYLLA_KEYSPACE__.kafka_sink_healthcheck.mapping": "check_id=key.check_id,source=value.source,message=value.message,created_at=value.created_at"
+}

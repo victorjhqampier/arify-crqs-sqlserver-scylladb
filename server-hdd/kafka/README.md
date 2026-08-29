@@ -13,7 +13,7 @@ test -f topics.env || cp topics.env.example topics.env
 
 `.env` contiene el cluster KRaft y su endpoint externo. Genere `KAFKA_CLUSTER_ID` una sola vez y conserve el valor. `KAFKA_ADVERTISED_HOST` debe ser resoluble desde ambos workers Kafka Connect.
 
-`topics.env` es el contrato de nombres de topicos: los tres topicos CDC compartidos, los topicos internos exclusivos de cada worker y el historial Debezium. No contiene secretos. Sus nombres deben coincidir con los `.env` de los componentes Connect.
+`topics.env` es el contrato de nombres de topicos: los tres topicos CDC compartidos, el topico healthcheck Kafka -> ScyllaDB, los topicos internos exclusivos de cada worker y el historial Debezium. No contiene secretos. Sus nombres deben coincidir con los `.env` de los componentes Connect.
 
 Los datos se persisten en `/var/app/kafka`. Cree y otorgue permisos a esa ruta antes del primer arranque segun el usuario de la imagen Kafka.
 
@@ -33,13 +33,23 @@ podman exec -it arify-kafka /opt/kafka/bin/kafka-broker-api-versions.sh \
 
 ## Crear topicos manualmente
 
-Desde este directorio, cargue el contrato de topicos y cree los tres topicos CDC con retencion de cinco minutos:
+Desde este directorio, cargue el contrato de topicos y cree el topico healthcheck con retencion corta. Este topico valida el Sink antes de iniciar SQL Server/Debezium:
 
 ```sh
 set -a
 . ./topics.env
 set +a
 
+podman exec -it arify-kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 \
+  --create --if-not-exists --topic "$HEALTHCHECK_TOPIC" \
+  --partitions 1 --replication-factor 1 \
+  --config retention.ms=300000 --config segment.ms=60000
+```
+
+Cree los tres topicos CDC con retencion de cinco minutos en la misma shell donde cargo `topics.env`:
+
+```sh
 for topic in "$CDC_TOPIC_KARDEX" "$CDC_TOPIC_AGENCIA" "$CDC_TOPIC_CANAL"; do
   podman exec -it arify-kafka /opt/kafka/bin/kafka-topics.sh \
     --bootstrap-server localhost:9092 \
@@ -49,7 +59,7 @@ for topic in "$CDC_TOPIC_KARDEX" "$CDC_TOPIC_AGENCIA" "$CDC_TOPIC_CANAL"; do
 done
 ```
 
-Crear solo los topicos internos exclusivos de ambos workers como compactados, sin la retencion de cinco minutos:
+Crear solo los topicos internos exclusivos de ambos workers como compactados en la misma shell, sin la retencion de cinco minutos:
 
 ```sh
 for topic in \
