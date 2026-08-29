@@ -49,14 +49,13 @@ for topic in "$CDC_TOPIC_KARDEX" "$CDC_TOPIC_AGENCIA" "$CDC_TOPIC_CANAL"; do
 done
 ```
 
-Crear los topicos internos exclusivos de ambos workers y el historial Debezium como compactados, sin la retencion de cinco minutos:
+Crear solo los topicos internos exclusivos de ambos workers como compactados, sin la retencion de cinco minutos:
 
 ```sh
 for topic in \
   "$DEBEZIUM_CONNECT_CONFIG_TOPIC" \
   "$DEBEZIUM_CONNECT_OFFSET_TOPIC" \
   "$DEBEZIUM_CONNECT_STATUS_TOPIC" \
-  "$SCHEMA_HISTORY_TOPIC" \
   "$SINK_CONNECT_CONFIG_TOPIC" \
   "$SINK_CONNECT_OFFSET_TOPIC" \
   "$SINK_CONNECT_STATUS_TOPIC"; do
@@ -66,6 +65,28 @@ for topic in \
     --partitions 1 --replication-factor 1 \
     --config cleanup.policy=compact
 done
+```
+
+Crear el historial de esquema de Debezium como durable y no compactado. Debezium escribe algunos registros sin key, por lo que `cleanup.policy=compact` rechaza el snapshot:
+
+```sh
+podman exec -it arify-kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 \
+  --create --if-not-exists --topic "$SCHEMA_HISTORY_TOPIC" \
+  --partitions 1 --replication-factor 1 \
+  --config cleanup.policy=delete \
+  --config retention.ms=-1
+```
+
+Si el historial ya existia como compactado, corrijalo antes de registrar Debezium:
+
+```sh
+podman exec -it arify-kafka /opt/kafka/bin/kafka-configs.sh \
+  --bootstrap-server localhost:9092 \
+  --entity-type topics \
+  --entity-name "$SCHEMA_HISTORY_TOPIC" \
+  --alter \
+  --add-config cleanup.policy=delete,retention.ms=-1
 ```
 
 Valide los topicos antes de registrar Debezium:

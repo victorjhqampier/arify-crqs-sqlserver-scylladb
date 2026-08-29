@@ -100,7 +100,7 @@ server-sdd/
 ## Kafka POC
 - Aplicar a los topicos CDC `retention.ms=300000`, `segment.ms=60000` y una revision de retencion cada 60 segundos.
 - Crear los topicos CDC con esa configuracion antes de registrar el Source Connector; no depender de los valores por defecto del broker.
-- No aplicar la retencion de cinco minutos a los topicos internos de Kafka Connect ni al historial de esquema de Debezium; deben ser compactados y durables.
+- No aplicar la retencion de cinco minutos a los topicos internos de Kafka Connect ni al historial de esquema de Debezium. Los topicos internos Connect deben ser compactados; el historial Debezium usa `cleanup.policy=delete` y `retention.ms=-1` porque puede contener registros sin key.
 
 ## Registro de Conectores y Puertos
 - Guardar el JSON Source en `server-hdd/kafka-connect-debezium/connectors/` y la plantilla Sink en `server-hdd/kafka-connect-sink/connectors/`; registrar cada uno solo cuando sus dependencias esten sanas.
@@ -120,7 +120,7 @@ server-sdd/
 - `database.names`: base de datos a capturar
 - `table.include.list`: `dbo.SI_FinKardex,dbo.SI_FinAgenciaCCE,dbo.SI_FinCanalCCE` para los identificadores CDC comparados por Debezium en esta POC.
 - `topic.prefix`: prefijo para los topicos
-- `schema.history.internal.kafka.topic`: topico para historial de esquema (compactado)
+- `schema.history.internal.kafka.topic`: topico para historial de esquema durable no compactado (`cleanup.policy=delete`, `retention.ms=-1`)
 - `schema.history.internal.kafka.bootstrap.servers`
 
 ### DataStax Cassandra Sink (propiedades minimas)

@@ -169,6 +169,21 @@ podman exec -it arix-mssql /opt/mssql-tools18/bin/sqlcmd \
   -Q "SELECT name FROM sys.database_principals WHERE name = N'debezium';"
 ```
 
+vaidar si hay CDC
+```sh
+podman exec -it arix-mssql /opt/mssql-tools18/bin/sqlcmd \
+  -C -S localhost -U sa -P 'Sysadmin321++' \
+  -d my_db_transaction \
+  -Q "SELECT TOP (10)
+        __\$start_lsn,
+        __\$operation,
+        idAgenciaCCE,
+        cNombreOficina,
+        lVigente
+      FROM cdc.dbo_SI_FinAgenciaCCE_CT
+      ORDER BY __\$start_lsn DESC;"
+```
+
 CDC se configura sobre la base restaurada `my_db_transaction`. Debezium leera los cambios de estas tres tablas al registrar el Source Connector en Kafka Connect.
 
 No cree una base vacia antes del `RESTORE`: `RESTORE DATABASE [my_db_transaction]` crea o reemplaza la base destino. No configure HADR para esta POC; CDC se habilita exclusivamente con el paso manual anterior.
@@ -216,7 +231,6 @@ for topic in \
   "$DEBEZIUM_CONNECT_CONFIG_TOPIC" \
   "$DEBEZIUM_CONNECT_OFFSET_TOPIC" \
   "$DEBEZIUM_CONNECT_STATUS_TOPIC" \
-  "$SCHEMA_HISTORY_TOPIC" \
   "$SINK_CONNECT_CONFIG_TOPIC" \
   "$SINK_CONNECT_OFFSET_TOPIC" \
   "$SINK_CONNECT_STATUS_TOPIC"; do
@@ -226,6 +240,25 @@ for topic in \
     --partitions 1 --replication-factor 1 \
     --config cleanup.policy=compact
 done
+
+# Debezium schema history is durable but not compacted: it can contain records without a key.
+podman exec -it arify-kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 \
+  --create --if-not-exists --topic "$SCHEMA_HISTORY_TOPIC" \
+  --partitions 1 --replication-factor 1 \
+  --config cleanup.policy=delete \
+  --config retention.ms=-1
+```
+
+Si el topico de historial ya existe como compactado, corrige su configuracion antes de registrar Debezium:
+
+```sh
+podman exec -it arify-kafka /opt/kafka/bin/kafka-configs.sh \
+  --bootstrap-server localhost:9092 \
+  --entity-type topics \
+  --entity-name "$SCHEMA_HISTORY_TOPIC" \
+  --alter \
+  --add-config cleanup.policy=delete,retention.ms=-1
 ```
 
 Valide los topicos antes de iniciar Kafka Connect:
@@ -279,7 +312,7 @@ Registre el Sink solo cuando su task sea `RUNNING`. Produzca entonces un evento 
 ## Contratos que deben coincidir
 
 - `SQLSERVER_DB`, `DEBEZIUM_USER` y su secreto deben coincidir entre SQL Server y `kafka-connect-debezium`, aunque se almacenen en `.env` distintos.
-- Los topicos CDC de `kafka/topics.env` deben coincidir en ambos workers. Cada worker debe conservar sus topicos internos exclusivos `arify-debezium-*` o `arify-sink-*`.
+- Los topicos CDC de `kafka/topics.env` deben coincidir en ambos workers. Los topicos internos exclusivos `arify-debezium-*` y `arify-sink-*` usan compactacion; `arify-schema-history.sqlserver` usa `cleanup.policy=delete` y `retention.ms=-1`.
 - `KAFKA_ADVERTISED_HOST:KAFKA_ADVERTISED_PORT` debe ser alcanzable desde ambos workers y coincidir con `KAFKA_BOOTSTRAP_SERVERS`.
 - `SCYLLA_LOCAL_DC` debe ser identico en ScyllaDB y `kafka-connect-sink`.
 - `SCYLLA_SINK_USERNAME` y `SCYLLA_SINK_PASSWORD` deben coincidir entre ScyllaDB y `kafka-connect-sink`. Los microservicios usan el rol de solo lectura o roles dedicados, nunca el superusuario `cassandra`.
