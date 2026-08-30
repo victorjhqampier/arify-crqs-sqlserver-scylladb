@@ -266,6 +266,14 @@ podman exec -it arix-mssql /opt/mssql-tools18/bin/sqlcmd \
       ORDER BY __\$start_lsn DESC;"
 ```
 
+conectarme a sql server y hacer consultas
+
+```sh
+podman exec -it arix-mssql /opt/mssql-tools18/bin/sqlcmd \
+  -C -S localhost -U sa -P 'Sysadmin321++' \
+  -d my_db_transaction
+```
+
 ## 6. Kafka Connect Debezium
 
 ```sh
@@ -315,3 +323,25 @@ SELECT * FROM arify_cqrs.si_fin_agencia_cce LIMIT 10;
 - `SCYLLA_LOCAL_DC`, `SCYLLA_SINK_USERNAME` y `SCYLLA_SINK_PASSWORD` deben coincidir entre ScyllaDB y `kafka-connect-sink`.
 
 Los `.env` no se versionan. Consulte el README de cada componente antes de desplegarlo.
+
+SQL Server:
+INSERT INTO dbo.SI_FinAgenciaCCE ( \
+    idAgenciaCCE, cCodigoRegistro, cNumeroEntidad, cNumeroOficina, \
+    cNumeroOficinaPlaza, cUbigeoPlazaCAnexo, cUbigeoPlazaCTransf, \
+    cNombreOficina, cNombreDomicilioOfi, cNombreLocalidad, cCodigoPostDistrito, \
+    cNombrePlaza, cTipoOficina, cUbigeoINEI, cPlazaExclusiva, cPrefTelef, \
+    cNumTelef1, cNumTelef2, cNumTelefFax, cNumTelefCentral, cNumExtension, \
+    cMotivoActualizacion, cFechaActualizacion, lVigente \
+) \
+VALUES \
+(9001, '01', '922', '001', '9999', '150101', '150101', 'OFICINA VIRTUAL TEST 1', 'Jr. Camaná 321', 'LIMA CENTRO', '', 'LIMA', '0', '150101', 'N', '', '', '', '', '', '', 'A', '20260829', 1), \
+(9002, '01', '922', '002', '9999', '150101', '150101', 'OFICINA VIRTUAL TEST 2', 'Jr. Camaná 322', 'LIMA NORTE',  '', 'LIMA', '0', '150101', 'N', '', '', '', '', '', '', 'A', '20260830', 1), \
+(9003, '01', '922', '003', '9999', '150101', '150101', 'OFICINA VIRTUAL TEST 3', 'Jr. Camaná 323', 'LIMA SUR',    '', 'LIMA', '0', '150101', 'N', '', '', '', '', '', '', 'A', '20260831', 1), \
+(9004, '01', '922', '004', '9999', '150101', '150101', 'OFICINA VIRTUAL TEST 4', 'Jr. Camaná 324', 'LIMA ESTE',   '', 'LIMA', '0', '150101', 'N', '', '', '', '', '', '', 'A', '20260901', 1), \
+(9005, '01', '922', '005', '9999', '150101', '150101', 'OFICINA VIRTUAL TEST 5', 'Jr. Camaná 325', 'LIMA OESTE',  '', 'LIMA', '0', '150101', 'N', '', '', '', '', '', '', 'A', '20260902', 1);
+
+
+select top 7 idagenciacce, cnombreoficina,  cnombredomicilioofi, cnombrelocalidad, cfechaactualizacion from Si_FinAgenciaCCE order by idagenciacce desc;
+
+ScyllaDB:
+select idagenciacce, cnombreoficina,  cnombredomicilioofi, cnombrelocalidad, cfechaactualizacion from si_fin_agencia_cce;
